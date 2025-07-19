@@ -1,7 +1,7 @@
 // src/extractRoute.ts
-import { ExtractController } from "./extractController";
+import { ExtractController } from "../controllers/extractController";
 import express from "express";
-import { upload } from "./uploadMiddleware";
+import { upload } from "../middleware/uploadMiddleware";
 
 const router = express.Router();
 const extractController = new ExtractController();

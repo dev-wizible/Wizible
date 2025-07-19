@@ -3,309 +3,2014 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Batch Resume Parser</title>
-    <link
-      href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css"
-      rel="stylesheet"
-    />
+    <title>AI Resume Evaluation System - Enhanced</title>
     <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
       body {
-        font-family: Arial, sans-serif;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
         padding: 2rem;
-        background: #f5f7fa;
       }
+
       .container {
-        max-width: 800px;
-        margin: auto;
+        max-width: 1400px;
+        margin: 0 auto;
         background: white;
-        padding: 2rem;
-        border-radius: 10px;
-        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-      }
-      .upload-section {
-        margin-bottom: 2rem;
-      }
-      input[type="file"] {
-        display: block;
-        margin-bottom: 1rem;
-      }
-      button {
-        background: #007bff;
-        color: white;
-        border: none;
-        padding: 0.6rem 1.2rem;
-        border-radius: 4px;
-        cursor: pointer;
-        margin-right: 1rem;
-      }
-      button:hover {
-        background: #0056b3;
-      }
-      button:disabled {
-        background: #ccc;
-        cursor: not-allowed;
-      }
-      .progress-section {
-        margin: 2rem 0;
-        padding: 1rem;
-        background: #f8f9fa;
-        border-radius: 5px;
-      }
-      .progress-bar {
-        width: 100%;
-        height: 20px;
-        background: #e9ecef;
-        border-radius: 10px;
+        border-radius: 20px;
+        box-shadow: 0 20px 40px rgba(0,0,0,0.1);
         overflow: hidden;
-        margin: 1rem 0;
       }
-      .progress-fill {
-        height: 100%;
-        background: #007bff;
-        transition: width 0.3s ease;
+
+      .header {
+        background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+        color: white;
+        padding: 3rem 2rem;
+        text-align: center;
+        position: relative;
       }
-      .stats {
+
+      .header h1 {
+        font-size: 2.5rem;
+        margin-bottom: 0.5rem;
+        font-weight: 700;
+      }
+
+      .header p {
+        font-size: 1.2rem;
+        opacity: 0.9;
+      }
+
+      .header .system-status {
+        position: absolute;
+        top: 1rem;
+        right: 2rem;
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+        font-size: 0.9rem;
+      }
+
+      .status-indicator {
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+        padding: 0.3rem 0.8rem;
+        background: rgba(255,255,255,0.2);
+        border-radius: 20px;
+        backdrop-filter: blur(10px);
+      }
+
+      .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        animation: pulse 2s infinite;
+      }
+
+      .status-healthy { background: #27ae60; }
+      .status-degraded { background: #f39c12; }
+      .status-unhealthy { background: #e74c3c; }
+
+      @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+      }
+
+      .main-content {
+        padding: 2rem;
+      }
+
+      .section {
+        margin-bottom: 3rem;
+        padding: 2rem;
+        border: 2px solid #f1f3f4;
+        border-radius: 15px;
+        transition: all 0.3s ease;
+        position: relative;
+      }
+
+      .section:hover {
+        border-color: #3498db;
+        box-shadow: 0 5px 15px rgba(52, 152, 219, 0.1);
+      }
+
+      .section-title {
+        font-size: 1.5rem;
+        color: #2c3e50;
+        margin-bottom: 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .section-icon {
+        font-size: 1.8rem;
+      }
+
+      .section-status {
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+        padding: 0.3rem 0.8rem;
+        border-radius: 15px;
+        font-size: 0.8rem;
+        font-weight: 600;
+      }
+
+      .status-ready {
+        background: #d4edda;
+        color: #155724;
+      }
+
+      .status-error {
+        background: #f8d7da;
+        color: #721c24;
+      }
+
+      .status-processing {
+        background: #cce5ff;
+        color: #004085;
+      }
+
+      /* Enhanced Progress Styles */
+      .progress-section {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border-radius: 15px;
+        padding: 2rem;
+        margin: 2rem 0;
+        display: none;
+        border: 2px solid #dee2e6;
+      }
+
+      .progress-header {
         display: flex;
         justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+      }
+
+      .progress-controls {
+        display: flex;
+        gap: 0.5rem;
+      }
+
+      .progress-bar {
+        width: 100%;
+        height: 30px;
+        background: #e9ecef;
+        border-radius: 15px;
+        overflow: hidden;
         margin: 1rem 0;
+        position: relative;
+        box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
       }
-      .stat-item {
-        text-align: center;
-        padding: 1rem;
+
+      .progress-fill {
+        height: 100%;
+        background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+        transition: width 0.3s ease;
+        border-radius: 15px;
+        position: relative;
+      }
+
+      .progress-text {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: white;
+        font-weight: 600;
+        font-size: 0.9rem;
+        text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+      }
+
+      .progress-details {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1rem;
+        margin-top: 1rem;
+      }
+
+      .progress-detail-item {
         background: white;
-        border-radius: 5px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        padding: 1rem;
+        border-radius: 10px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
       }
+
+      .detail-label {
+        font-size: 0.8rem;
+        color: #666;
+        margin-bottom: 0.3rem;
+      }
+
+      .detail-value {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #2c3e50;
+      }
+
+      /* Enhanced Stats Grid */
+      .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1.5rem;
+        margin: 1.5rem 0;
+      }
+
+      .stat-card {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 15px;
+        text-align: center;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        transition: all 0.3s ease;
+        border: 2px solid transparent;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .stat-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: linear-gradient(135deg, #3498db, #2980b9);
+      }
+
+      .stat-card:hover {
+        transform: translateY(-5px);
+        border-color: #3498db;
+        box-shadow: 0 10px 25px rgba(52, 152, 219, 0.2);
+      }
+
       .stat-number {
-        font-size: 2rem;
+        font-size: 2.5rem;
         font-weight: bold;
-        color: #007bff;
+        color: #3498db;
+        display: block;
+        margin-bottom: 0.5rem;
       }
+
       .stat-label {
+        color: #7f8c8d;
+        font-weight: 500;
+      }
+
+      .stat-trend {
+        font-size: 0.8rem;
+        margin-top: 0.5rem;
+        padding: 0.2rem 0.5rem;
+        border-radius: 10px;
+      }
+
+      .trend-up {
+        background: #d4edda;
+        color: #155724;
+      }
+
+      .trend-down {
+        background: #f8d7da;
+        color: #721c24;
+      }
+
+      /* Enhanced File Validation */
+      .file-validation {
+        margin-top: 1rem;
+        padding: 1rem;
+        background: #f8f9fa;
+        border-radius: 10px;
+        border-left: 4px solid #3498db;
+      }
+
+      .validation-summary {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1rem;
+      }
+
+      .validation-item {
+        text-align: center;
+      }
+
+      .validation-number {
+        font-size: 1.5rem;
+        font-weight: bold;
+        margin-bottom: 0.3rem;
+      }
+
+      .validation-valid { color: #27ae60; }
+      .validation-invalid { color: #e74c3c; }
+      .validation-warning { color: #f39c12; }
+
+      /* Form Enhancements */
+      .form-group {
+        margin-bottom: 1.5rem;
+        position: relative;
+      }
+
+      .form-label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: 600;
+        color: #34495e;
+      }
+
+      .form-input, .form-textarea {
+        width: 100%;
+        padding: 1rem;
+        border: 2px solid #e0e6ed;
+        border-radius: 10px;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+        font-family: inherit;
+      }
+
+      .form-input:focus, .form-textarea:focus {
+        outline: none;
+        border-color: #3498db;
+        box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+      }
+
+      .form-textarea {
+        min-height: 120px;
+        resize: vertical;
+      }
+
+      .character-count {
+        position: absolute;
+        bottom: 0.5rem;
+        right: 1rem;
+        font-size: 0.8rem;
+        color: #666;
+        background: white;
+        padding: 0.2rem 0.5rem;
+        border-radius: 5px;
+      }
+
+      /* Button Enhancements */
+      .btn {
+        background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+        color: white;
+        border: none;
+        padding: 1rem 2rem;
+        border-radius: 10px;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .btn::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+        transition: left 0.5s;
+      }
+
+      .btn:hover::before {
+        left: 100%;
+      }
+
+      .btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(52, 152, 219, 0.3);
+      }
+
+      .btn:disabled {
+        background: linear-gradient(135deg, #bdc3c7 0%, #95a5a6 100%);
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+      }
+
+      .btn-success {
+        background: linear-gradient(135deg, #27ae60 0%, #229954 100%);
+      }
+
+      .btn-warning {
+        background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
+      }
+
+      .btn-danger {
+        background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+      }
+
+      .btn-small {
+        padding: 0.5rem 1rem;
+        font-size: 0.9rem;
+      }
+
+      .btn-loading {
+        pointer-events: none;
+      }
+
+      .btn-loading .btn-text {
+        opacity: 0;
+      }
+
+      .btn-loading::after {
+        content: '';
+        position: absolute;
+        width: 20px;
+        height: 20px;
+        border: 2px solid transparent;
+        border-top: 2px solid white;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+
+      /* Enhanced Resume List */
+      .resume-list {
+        margin-top: 2rem;
+      }
+
+      .resume-item {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border: 2px solid #e9ecef;
+        border-radius: 15px;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .resume-item::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 4px;
+        height: 100%;
+        background: #3498db;
+        transform: scaleY(0);
+        transition: transform 0.3s ease;
+      }
+
+      .resume-item:hover::before {
+        transform: scaleY(1);
+      }
+
+      .resume-item:hover {
+        border-color: #3498db;
+        background: #f1f8ff;
+        transform: translateX(5px);
+      }
+
+      .resume-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 1rem;
+      }
+
+      .resume-info {
+        flex: 1;
+      }
+
+      .resume-filename {
+        font-weight: 600;
+        color: #2c3e50;
+        margin-bottom: 0.5rem;
+        font-size: 1.1rem;
+      }
+
+      .resume-metadata {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 0.5rem;
         font-size: 0.9rem;
         color: #666;
       }
-      .results-section {
-        margin-top: 2rem;
-      }
-      .download-links {
+
+      .resume-status {
         display: flex;
-        gap: 1rem;
-        margin: 1rem 0;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        margin-bottom: 1rem;
       }
-      .download-btn {
-        background: #28a745;
-        color: white;
-        text-decoration: none;
-        padding: 0.5rem 1rem;
-        border-radius: 4px;
-        font-size: 0.9rem;
+
+      .status-badge {
+        padding: 0.3rem 0.8rem;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
       }
-      .download-btn:hover {
-        background: #218838;
+
+      .status-extracted {
+        background: #d4edda;
+        color: #155724;
       }
-      .log-section {
-        background: #282a36;
-        color: #f8f8f2;
-        padding: 1rem;
-        border-radius: 5px;
-        height: 300px;
-        overflow-y: auto;
-        font-family: monospace;
-        font-size: 0.9rem;
+
+      .status-scored {
+        background: #cce5ff;
+        color: #004085;
+      }
+
+      .status-pending {
+        background: #fff3cd;
+        color: #856404;
+      }
+
+      .status-processing {
+        background: #f0f0f0;
+        color: #666;
+      }
+
+      .status-error {
+        background: #f8d7da;
+        color: #721c24;
+      }
+
+      .resume-actions {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+      }
+
+      .score-display {
         margin-top: 1rem;
+        padding: 1.5rem;
+        background: white;
+        border-radius: 10px;
+        border-left: 4px solid #3498db;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
       }
-      .log-entry {
-        margin: 0.2rem 0;
-        padding: 0.2rem 0;
+
+      .score-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
       }
-      .log-success { color: #50fa7b; }
-      .log-error { color: #ff5555; }
-      .log-info { color: #8be9fd; }
-      .log-warning { color: #ffb86c; }
+
+      .score-timestamp {
+        font-size: 0.8rem;
+        color: #666;
+      }
+
+      .score-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1rem;
+      }
+
+      .score-item {
+        text-align: center;
+        padding: 1rem;
+        background: #f8f9fa;
+        border-radius: 8px;
+      }
+
+      .score-label {
+        font-size: 0.9rem;
+        color: #666;
+        margin-bottom: 0.5rem;
+      }
+
+      .score-value {
+        font-size: 1.8rem;
+        font-weight: bold;
+        color: #3498db;
+      }
+
+      .score-reasoning {
+        margin-top: 1rem;
+        padding: 1rem;
+        background: #f8f9fa;
+        border-radius: 8px;
+        font-style: italic;
+        color: #495057;
+        line-height: 1.6;
+        border-left: 3px solid #3498db;
+      }
+
+      /* Alerts and Notifications */
+      .alert {
+        padding: 1rem 1.5rem;
+        border-radius: 10px;
+        margin: 1rem 0;
+        font-weight: 500;
+        position: relative;
+        border-left: 4px solid transparent;
+      }
+
+      .alert-success {
+        background: #d4edda;
+        color: #155724;
+        border-left-color: #27ae60;
+      }
+
+      .alert-error {
+        background: #f8d7da;
+        color: #721c24;
+        border-left-color: #e74c3c;
+      }
+
+      .alert-info {
+        background: #cce5ff;
+        color: #004085;
+        border-left-color: #3498db;
+      }
+
+      .alert-warning {
+        background: #fff3cd;
+        color: #856404;
+        border-left-color: #f39c12;
+      }
+
+      .alert-dismissible {
+        padding-right: 3rem;
+      }
+
+      .alert-close {
+        position: absolute;
+        top: 50%;
+        right: 1rem;
+        transform: translateY(-50%);
+        background: none;
+        border: none;
+        font-size: 1.2rem;
+        cursor: pointer;
+        opacity: 0.6;
+        transition: opacity 0.3s;
+      }
+
+      .alert-close:hover {
+        opacity: 1;
+      }
+
+      /* Configuration Status */
+      .config-status {
+        padding: 1rem;
+        border-radius: 10px;
+        margin-bottom: 1.5rem;
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .config-ready {
+        background: #d4edda;
+        color: #155724;
+        border: 2px solid #c3e6cb;
+      }
+
+      .config-missing {
+        background: #fff3cd;
+        color: #856404;
+        border: 2px solid #ffeaa7;
+      }
+
+      /* Real-time Updates */
+      .live-updates {
+        position: fixed;
+        bottom: 2rem;
+        right: 2rem;
+        background: white;
+        border-radius: 15px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        padding: 1rem;
+        max-width: 300px;
+        z-index: 1000;
+        transform: translateX(400px);
+        transition: transform 0.3s ease;
+      }
+
+      .live-updates.show {
+        transform: translateX(0);
+      }
+
+      .update-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.5rem;
+        font-weight: 600;
+        color: #2c3e50;
+      }
+
+      .update-content {
+        font-size: 0.9rem;
+        color: #666;
+      }
+
+      /* Responsive Design */
+      @media (max-width: 768px) {
+        .container {
+          margin: 1rem;
+          border-radius: 15px;
+        }
+
+        .header {
+          padding: 2rem 1rem;
+        }
+
+        .header h1 {
+          font-size: 2rem;
+        }
+
+        .header .system-status {
+          position: static;
+          justify-content: center;
+          margin-top: 1rem;
+        }
+
+        .main-content {
+          padding: 1rem;
+        }
+
+        .section {
+          padding: 1.5rem;
+        }
+
+        .resume-item {
+          padding: 1rem;
+        }
+
+        .resume-header {
+          flex-direction: column;
+          gap: 1rem;
+        }
+
+        .resume-actions {
+          width: 100%;
+          justify-content: stretch;
+        }
+
+        .btn {
+          flex: 1;
+          justify-content: center;
+        }
+
+        .stats-grid {
+          grid-template-columns: repeat(2, 1fr);
+        }
+
+        .score-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .live-updates {
+          position: fixed;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          border-radius: 15px 15px 0 0;
+          max-width: none;
+          transform: translateY(100%);
+        }
+
+        .live-updates.show {
+          transform: translateY(0);
+        }
+      }
+
+      /* Accessibility */
+      @media (prefers-reduced-motion: reduce) {
+        * {
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.01ms !important;
+        }
+      }
+
+      /* Dark mode support */
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg-primary: #1a1a1a;
+          --bg-secondary: #2d2d2d;
+          --text-primary: #ffffff;
+          --text-secondary: #cccccc;
+        }
+      }
+
+      .hidden {
+        display: none !important;
+      }
+
+      /* Loading states */
+      .skeleton {
+        background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+        background-size: 200% 100%;
+        animation: loading 1.5s infinite;
+      }
+
+      @keyframes loading {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+      }
+
+      .skeleton-text {
+        height: 1rem;
+        margin-bottom: 0.5rem;
+        border-radius: 4px;
+      }
+
+      .skeleton-title {
+        height: 1.5rem;
+        width: 60%;
+        margin-bottom: 1rem;
+        border-radius: 4px;
+      }
     </style>
   </head>
   <body>
     <div class="container">
-      <h2>📁 Batch Resume JSON Extractor</h2>
-      
-      <div class="upload-section">
-        <h3>Select Resume Folder</h3>
-        <input type="file" id="resumeFolder" webkitdirectory directory multiple />
-        <button onclick="uploadBatch()" id="uploadBtn">Process All Resumes</button>
-        <button onclick="cancelProcessing()" id="cancelBtn" disabled>Cancel Processing</button>
-      </div>
-
-      <div class="progress-section" id="progressSection" style="display: none;">
-        <h3>Processing Progress</h3>
-        <div class="progress-bar">
-          <div class="progress-fill" id="progressFill" style="width: 0%"></div>
-        </div>
-        <div class="stats">
-          <div class="stat-item">
-            <div class="stat-number" id="totalFiles">0</div>
-            <div class="stat-label">Total Files</div>
+      <div class="header">
+        <div class="system-status">
+          <div class="status-indicator">
+            <div class="status-dot status-healthy" id="apiStatus"></div>
+            <span id="apiStatusText">API Healthy</span>
           </div>
-          <div class="stat-item">
-            <div class="stat-number" id="processedFiles">0</div>
-            <div class="stat-label">Processed</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-number" id="successFiles">0</div>
-            <div class="stat-label">Success</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-number" id="errorFiles">0</div>
-            <div class="stat-label">Errors</div>
+          <div class="status-indicator">
+            <div class="status-dot status-healthy" id="systemStatus"></div>
+            <span id="systemStatusText">System Ready</span>
           </div>
         </div>
+        <h1>🤖 AI Resume Evaluation System</h1>
+        <p>Extract, Configure, and Score Resumes with Multiple AI Models</p>
       </div>
 
-      <div class="results-section" id="resultsSection" style="display: none;">
-        <h3>Results</h3>
-        <div class="download-links">
-          <a href="#" class="download-btn" id="downloadJson">Download JSON Results</a>
-          <a href="#" class="download-btn" id="downloadReport">Download Processing Report</a>
+      <div class="main-content">
+        <!-- System Statistics Section -->
+        <div class="section">
+          <h2 class="section-title">
+            <span class="section-icon">📊</span>
+            System Overview
+          </h2>
+          <div class="stats-grid" id="systemStats">
+            <div class="stat-card">
+              <span class="stat-number" id="totalProcessed">0</span>
+              <div class="stat-label">Total Processed</div>
+              <div class="stat-trend trend-up" id="processedTrend">+0% this session</div>
+            </div>
+            <div class="stat-card">
+              <span class="stat-number" id="successRate">0%</span>
+              <div class="stat-label">Success Rate</div>
+              <div class="stat-trend trend-up" id="successTrend">High quality</div>
+            </div>
+            <div class="stat-card">
+              <span class="stat-number" id="avgProcessingTime">0s</span>
+              <div class="stat-label">Avg Processing Time</div>
+              <div class="stat-trend trend-up" id="timeTrend">Optimized</div>
+            </div>
+            <div class="stat-card">
+              <span class="stat-number" id="queueLength">0</span>
+              <div class="stat-label">Queue Length</div>
+              <div class="stat-trend" id="queueTrend">Ready</div>
+            </div>
+          </div>
         </div>
-      </div>
 
-      <div class="log-section" id="logSection">
-        <div class="log-entry log-info">Ready to process resumes...</div>
-      </div>
-    </div>
+        <!-- Configuration Section -->
+        <div class="section">
+          <div class="section-status status-ready" id="configSectionStatus">Ready</div>
+          <h2 class="section-title">
+            <span class="section-icon">⚙️</span>
+            Job Configuration
+          </h2>
+          
+          <div id="configStatus" class="config-status config-missing">
+            ⚠️ Please configure job description and evaluation rubric before scoring resumes
+          </div>
 
-    <script>
-      let processingCancelled = false;
-      let currentBatchId = null;
+          <div class="form-group">
+            <label class="form-label" for="jobDescription">Job Description</label>
+            <textarea 
+              id="jobDescription" 
+              class="form-textarea" 
+              placeholder="Enter the complete job description here..."
+              rows="6"
+              maxlength="5000"
+            ></textarea>
+            <div class="character-count" id="jobDescCount">0/5000</div>
+          </div>
 
-      function addLog(message, type = 'info') {
-        const logSection = document.getElementById('logSection');
-        const logEntry = document.createElement('div');
-        logEntry.className = `log-entry log-${type}`;
-        logEntry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
-        logSection.appendChild(logEntry);
-        logSection.scrollTop = logSection.scrollHeight;
-      }
+          <div class="form-group">
+            <label class="form-label" for="evaluationRubric">Evaluation Rubric</label>
+            <textarea 
+              id="evaluationRubric" 
+              class="form-textarea" 
+              placeholder="Enter your evaluation criteria and scoring rubric..."
+              rows="8"
+              maxlength="10000"
+            ></textarea>
+            <div class="character-count" id="rubricCount">0/10000</div>
+          </div>
 
-      function updateProgress(processed, total, success, errors) {
-        const progressFill = document.getElementById('progressFill');
-        const percentage = total > 0 ? (processed / total) * 100 : 0;
-        progressFill.style.width = percentage + '%';
-        
-        document.getElementById('totalFiles').textContent = total;
-        document.getElementById('processedFiles').textContent = processed;
-        document.getElementById('successFiles').textContent = success;
-        document.getElementById('errorFiles').textContent = errors;
-      }
+          <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+            <button class="btn" onclick="saveConfiguration()" id="saveConfigBtn">
+              <span class="btn-text">💾 Save Configuration</span>
+            </button>
+            <button class="btn btn-warning" onclick="clearConfiguration()">
+              <span class="btn-text">🗑️ Clear Configuration</span>
+            </button>
+            <button class="btn" onclick="validateConfiguration()" id="validateBtn">
+              <span class="btn-text">✅ Validate Configuration</span>
+            </button>
+          </div>
+        </div>
 
-      async function uploadBatch() {
-        const folderInput = document.getElementById('resumeFolder');
-        const uploadBtn = document.getElementById('uploadBtn');
-        const cancelBtn = document.getElementById('cancelBtn');
-        const progressSection = document.getElementById('progressSection');
-        const resultsSection = document.getElementById('resultsSection');
+        <!-- Resume Extraction Section -->
+        <div class="section">
+          <div class="section-status status-ready" id="extractionSectionStatus">Ready</div>
+          <h2 class="section-title">
+            <span class="section-icon">📄</span>
+            Resume Extraction
+          </h2>
+          
+          <div class="form-group">
+            <label class="form-label">Select Resume Folder</label>
+            <input type="file" id="resumeFolder" webkitdirectory directory multiple class="form-input" />
+          </div>
 
-        if (!folderInput.files.length) {
-          alert('Please select a folder containing resume files.');
-          return;
-        }
+          <div class="file-validation" id="fileValidation" style="display: none;">
+            <h4>File Validation Results</h4>
+            <div class="validation-summary">
+              <div class="validation-item">
+                <div class="validation-number validation-valid" id="validFileCount">0</div>
+                <div>Valid Files</div>
+              </div>
+              <div class="validation-item">
+                <div class="validation-number validation-invalid" id="invalidFileCount">0</div>
+                <div>Invalid Files</div>
+              </div>
+              <div class="validation-item">
+                <div class="validation-number validation-warning" id="warningFileCount">0</div>
+                <div>Warnings</div>
+              </div>
+              <div class="validation-item">
+                <div class="validation-number" id="totalFileSize">0 MB</div>
+                <div>Total Size</div>
+              </div>
+            </div>
+          </div>
 
-        // Filter PDF files
-        const pdfFiles = Array.from(folderInput.files).filter(file => 
-          file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
-        );
+          <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+            <button class="btn" onclick="uploadBatch()" id="uploadBtn">
+              <span class="btn-text">🚀 Process All Resumes</span>
+            </button>
+            <button class="btn btn-warning" onclick="pauseProcessing()" id="pauseBtn" disabled>
+              <span class="btn-text">⏸️ Pause Processing</span>
+            </button>
+            <button class="btn btn-danger" onclick="cancelProcessing()" id="cancelBtn" disabled>
+              <span class="btn-text">⏹️ Cancel Processing</span>
+            </button>
+          </div>
 
-        if (pdfFiles.length === 0) {
-          alert('No PDF files found in the selected folder.');
-          return;
-        }
+          <div class="progress-section" id="progressSection">
+            <div class="progress-header">
+              <h3>Processing Progress</h3>
+              <div class="progress-controls">
+                <button class="btn btn-small" onclick="toggleProgressDetails()">
+                  <span class="btn-text">📋 Details</span>
+                </button>
+              </div>
+            </div>
+            
+            <div class="progress-bar">
+              <div class="progress-fill" id="progressFill" style="width: 0%">
+                <div class="progress-text" id="progressText">0%</div>
+              </div>
+            </div>
+            
+            <div class="progress-details" id="progressDetails">
+              <div class="progress-detail-item">
+                <div class="detail-label">Estimated Completion</div>
+                <div class="detail-value" id="estimatedCompletion">Calculating...</div>
+              </div>
+              <div class="progress-detail-item">
+                <div class="detail-label">Average Processing Time</div
+                  <div class="detail-value" id="avgTime">0s per file</div>
+             </div>
+             <div class="progress-detail-item">
+               <div class="detail-label">Throughput</div>
+               <div class="detail-value" id="throughput">0 files/min</div>
+             </div>
+             <div class="progress-detail-item">
+               <div class="detail-label">Current Status</div>
+               <div class="detail-value" id="currentStatus">Ready</div>
+             </div>
+           </div>
 
-        processingCancelled = false;
-        uploadBtn.disabled = true;
-        cancelBtn.disabled = false;
-        progressSection.style.display = 'block';
-        resultsSection.style.display = 'none';
+           <div class="stats-grid">
+             <div class="stat-card">
+               <span class="stat-number" id="totalFiles">0</span>
+               <div class="stat-label">Total Files</div>
+             </div>
+             <div class="stat-card">
+               <span class="stat-number" id="processedFiles">0</span>
+               <div class="stat-label">Processed</div>
+             </div>
+             <div class="stat-card">
+               <span class="stat-number" id="successFiles">0</span>
+               <div class="stat-label">Success</div>
+             </div>
+             <div class="stat-card">
+               <span class="stat-number" id="errorFiles">0</span>
+               <div class="stat-label">Errors</div>
+             </div>
+           </div>
+         </div>
+       </div>
 
-        addLog(`Found ${pdfFiles.length} PDF files to process`, 'info');
+       <!-- Resume Scoring Section -->
+       <div class="section">
+         <div class="section-status status-ready" id="scoringSectionStatus">Ready</div>
+         <h2 class="section-title">
+           <span class="section-icon">🎯</span>
+           AI Resume Scoring
+         </h2>
+         
+         <div style="display: flex; gap: 1rem; margin-bottom: 2rem; flex-wrap: wrap;">
+           <button class="btn" onclick="loadAvailableResumes()">
+             <span class="btn-text">🔄 Refresh Resume List</span>
+           </button>
+           <button class="btn btn-success" onclick="scoreAllResumes()" id="scoreAllBtn">
+             <span class="btn-text">⚡ Score All Resumes</span>
+           </button>
+           <button class="btn" onclick="exportResults()">
+             <span class="btn-text">📊 Export Results</span>
+           </button>
+         </div>
 
-        const formData = new FormData();
-        pdfFiles.forEach(file => formData.append('resumes', file));
+         <div id="resumesList" class="resume-list">
+           <div class="alert alert-info">
+             Click "Refresh Resume List" to load available resumes for scoring
+           </div>
+         </div>
+       </div>
 
-        try {
-          const response = await fetch('http://localhost:3000/api/batch-extract', {
-            method: 'POST',
-            body: formData
-          });
+       <!-- Results Download Section -->
+       <div class="section" id="resultsSection" style="display: none;">
+         <h2 class="section-title">
+           <span class="section-icon">📊</span>
+           Download Results
+         </h2>
+         <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+           <a href="#" class="btn btn-success" id="downloadJson">
+             <span class="btn-text">📁 Download JSON Results</span>
+           </a>
+           <a href="#" class="btn btn-success" id="downloadReport">
+             <span class="btn-text">📋 Download Processing Report</span>
+           </a>
+         </div>
+       </div>
+     </div>
+   </div>
 
-          if (!response.ok) {
-            throw new Error(`Server error: ${response.status}`);
-          }
+   <!-- Live Updates Panel -->
+   <div class="live-updates" id="liveUpdates">
+     <div class="update-header">
+       <span>Live Updates</span>
+       <button class="alert-close" onclick="hideLiveUpdates()">×</button>
+     </div>
+     <div class="update-content" id="updateContent">
+       System ready for processing...
+     </div>
+   </div>
 
-          const data = await response.json();
-          currentBatchId = data.batchId;
-          addLog(`Batch processing started with ID: ${currentBatchId}`, 'success');
+   <script>
+     // Enhanced global state management
+     const AppState = {
+       processingCancelled: false,
+       currentBatchId: null,
+       configurationSaved: false,
+       isProcessing: false,
+       isPaused: false,
+       systemStats: {
+         totalProcessed: 0,
+         successRate: 0,
+         avgProcessingTime: 0,
+         queueLength: 0
+       },
+       validationResults: null,
+       liveUpdatesVisible: true
+     };
 
-          // Start polling for progress
-          await pollProgress(currentBatchId);
+     // Enhanced configuration management
+     async function saveConfiguration() {
+       const jobDescription = document.getElementById('jobDescription').value.trim();
+       const evaluationRubric = document.getElementById('evaluationRubric').value.trim();
+       const saveBtn = document.getElementById('saveConfigBtn');
 
-        } catch (error) {
-          addLog(`Error starting batch processing: ${error.message}`, 'error');
-        } finally {
-          uploadBtn.disabled = false;
-          cancelBtn.disabled = true;
-        }
-      }
+       if (!jobDescription || jobDescription.length < 10) {
+         showAlert('Job description must be at least 10 characters long', 'error');
+         return;
+       }
 
-      async function pollProgress(batchId) {
-        while (!processingCancelled) {
-          try {
-            const response = await fetch(`http://localhost:3000/api/batch-progress/${batchId}`);
-            const data = await response.json();
+       if (!evaluationRubric || evaluationRubric.length < 10) {
+         showAlert('Evaluation rubric must be at least 10 characters long', 'error');
+         return;
+       }
 
-            updateProgress(data.processed, data.total, data.success, data.errors);
+       setButtonLoading(saveBtn, true);
 
-            if (data.status === 'completed') {
-              addLog('Batch processing completed!', 'success');
-              showResults(batchId);
-              break;
-            } else if (data.status === 'failed') {
-              addLog('Batch processing failed', 'error');
-              break;
-            }
+       try {
+         const response = await fetch('http://localhost:3000/api/upload-config', {
+           method: 'POST',
+           headers: {
+             'Content-Type': 'application/json'
+           },
+           body: JSON.stringify({
+             jobDescription,
+             evaluationRubric
+           })
+         });
 
-            // Add recent log entries
-            if (data.recentLogs) {
-              data.recentLogs.forEach(log => addLog(log.message, log.type));
-            }
+         const data = await response.json();
 
-            await new Promise(resolve => setTimeout(resolve, 2000));
-          } catch (error) {
-            addLog(`Error polling progress: ${error.message}`, 'error');
-            await new Promise(resolve => setTimeout(resolve, 5000));
-          }
-        }
-      }
+         if (response.ok) {
+           AppState.configurationSaved = true;
+           updateConfigStatus(true);
+           updateSectionStatus('configSectionStatus', 'ready');
+           showAlert('Configuration saved successfully!', 'success');
+           showLiveUpdate('Configuration updated and validated');
+         } else {
+           throw new Error(data.error || 'Failed to save configuration');
+         }
+       } catch (error) {
+         updateSectionStatus('configSectionStatus', 'error');
+         showAlert(`Error saving configuration: ${error.message}`, 'error');
+       } finally {
+         setButtonLoading(saveBtn, false);
+       }
+     }
 
-      function showResults(batchId) {
-        const resultsSection = document.getElementById('resultsSection');
-        const downloadJson = document.getElementById('downloadJson');
-        const downloadReport = document.getElementById('downloadReport');
+     async function validateConfiguration() {
+       const jobDescription = document.getElementById('jobDescription').value.trim();
+       const evaluationRubric = document.getElementById('evaluationRubric').value.trim();
+       const validateBtn = document.getElementById('validateBtn');
 
-        downloadJson.href = `http://localhost:3000/api/batch-download/${batchId}/json`;
-        downloadReport.href = `http://localhost:3000/api/batch-download/${batchId}/report`;
+       if (!jobDescription || !evaluationRubric) {
+         showAlert('Please enter both job description and evaluation rubric', 'warning');
+         return;
+       }
 
-        resultsSection.style.display = 'block';
-      }
+       setButtonLoading(validateBtn, true);
 
-      function cancelProcessing() {
-        processingCancelled = true;
-        if (currentBatchId) {
-          fetch(`http://localhost:3000/api/batch-cancel/${currentBatchId}`, {
-            method: 'POST'
-          });
-        }
-        addLog('Processing cancelled by user', 'warning');
-      }
-    </script>
-  </body>
+       try {
+         // Simple validation checks
+         const issues = [];
+         const warnings = [];
+
+         if (jobDescription.length < 50) {
+           warnings.push('Job description is quite short');
+         }
+
+         if (evaluationRubric.length < 100) {
+           warnings.push('Evaluation rubric could be more detailed');
+         }
+
+         if (!jobDescription.toLowerCase().includes('requirements')) {
+           warnings.push('Job description might be missing requirements section');
+         }
+
+         if (!evaluationRubric.toLowerCase().includes('score')) {
+           warnings.push('Evaluation rubric might be missing scoring criteria');
+         }
+
+         let message = 'Configuration validation completed';
+         let type = 'success';
+
+         if (issues.length > 0) {
+           message = `Validation failed: ${issues.join(', ')}`;
+           type = 'error';
+         } else if (warnings.length > 0) {
+           message = `Validation passed with warnings: ${warnings.join(', ')}`;
+           type = 'warning';
+         }
+
+         showAlert(message, type);
+
+       } finally {
+         setButtonLoading(validateBtn, false);
+       }
+     }
+
+     // Enhanced file validation
+     async function validateFiles(files) {
+       const results = {
+         validFiles: [],
+         invalidFiles: [],
+         warnings: [],
+         totalSize: 0
+       };
+
+       for (const file of files) {
+         const fileSize = file.size;
+         results.totalSize += fileSize;
+
+         const validationResult = {
+           file,
+           isValid: true,
+           errors: [],
+           warnings: []
+         };
+
+         // File extension check
+         if (!file.name.toLowerCase().endsWith('.pdf')) {
+           validationResult.isValid = false;
+           validationResult.errors.push('Not a PDF file');
+         }
+
+         // File size check (10MB limit)
+         if (fileSize > 10 * 1024 * 1024) {
+           validationResult.isValid = false;
+           validationResult.errors.push('File too large (>10MB)');
+         }
+
+         // Empty file check
+         if (fileSize === 0) {
+           validationResult.isValid = false;
+           validationResult.errors.push('Empty file');
+         }
+
+         // Size warnings
+         if (fileSize < 1024) {
+           validationResult.warnings.push('Very small file');
+         } else if (fileSize > 5 * 1024 * 1024) {
+           validationResult.warnings.push('Large file may take longer to process');
+         }
+
+         // Filename checks
+         if (file.name.includes(' ')) {
+           validationResult.warnings.push('Filename contains spaces');
+         }
+
+         if (validationResult.isValid) {
+           results.validFiles.push(file);
+           if (validationResult.warnings.length > 0) {
+             results.warnings.push(`${file.name}: ${validationResult.warnings.join(', ')}`);
+           }
+         } else {
+           results.invalidFiles.push({
+             file,
+             errors: validationResult.errors
+           });
+         }
+       }
+
+       return results;
+     }
+
+     function displayValidationResults(results) {
+       const validationDiv = document.getElementById('fileValidation');
+       const validCount = document.getElementById('validFileCount');
+       const invalidCount = document.getElementById('invalidFileCount');
+       const warningCount = document.getElementById('warningFileCount');
+       const totalSize = document.getElementById('totalFileSize');
+
+       validCount.textContent = results.validFiles.length;
+       invalidCount.textContent = results.invalidFiles.length;
+       warningCount.textContent = results.warnings.length;
+       totalSize.textContent = formatBytes(results.totalSize);
+
+       validationDiv.style.display = 'block';
+
+       if (results.invalidFiles.length > 0) {
+         const errorMsg = results.invalidFiles.map(item => 
+           `${item.file.name}: ${item.errors.join(', ')}`
+         ).join('\n');
+         showAlert(`Invalid files found:\n${errorMsg}`, 'warning');
+       }
+
+       if (results.warnings.length > 0) {
+         showAlert(`Validation warnings: ${results.warnings.length} files have warnings`, 'warning');
+       }
+
+       AppState.validationResults = results;
+     }
+
+     // Enhanced batch processing
+     async function uploadBatch() {
+       const folderInput = document.getElementById('resumeFolder');
+       const uploadBtn = document.getElementById('uploadBtn');
+       const pauseBtn = document.getElementById('pauseBtn');
+       const cancelBtn = document.getElementById('cancelBtn');
+       const progressSection = document.getElementById('progressSection');
+       const resultsSection = document.getElementById('resultsSection');
+
+       if (!folderInput.files.length) {
+         showAlert('Please select a folder containing resume files.', 'error');
+         return;
+       }
+
+       const allFiles = Array.from(folderInput.files);
+       const pdfFiles = allFiles.filter(file => 
+         file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
+       );
+
+       if (pdfFiles.length === 0) {
+         showAlert('No PDF files found in the selected folder.', 'error');
+         return;
+       }
+
+       // Validate files first
+       showLiveUpdate('Validating files...');
+       const validationResults = await validateFiles(pdfFiles);
+       displayValidationResults(validationResults);
+
+       if (validationResults.validFiles.length === 0) {
+         showAlert('No valid PDF files found after validation.', 'error');
+         return;
+       }
+
+       AppState.processingCancelled = false;
+       AppState.isProcessing = true;
+       AppState.isPaused = false;
+
+       setButtonLoading(uploadBtn, true);
+       pauseBtn.disabled = false;
+       cancelBtn.disabled = false;
+       progressSection.style.display = 'block';
+       resultsSection.style.display = 'none';
+
+       updateSectionStatus('extractionSectionStatus', 'processing');
+       showLiveUpdate(`Starting batch processing of ${validationResults.validFiles.length} files`);
+
+       const formData = new FormData();
+       validationResults.validFiles.forEach(file => formData.append('resumes', file));
+
+       try {
+         const response = await fetch('http://localhost:3000/api/batch-extract', {
+           method: 'POST',
+           body: formData
+         });
+
+         if (!response.ok) {
+           throw new Error(`Server error: ${response.status}`);
+         }
+
+         const data = await response.json();
+         AppState.currentBatchId = data.batchId;
+         showAlert(`Batch processing started with ID: ${AppState.currentBatchId}`, 'success');
+         showLiveUpdate(`Batch ${AppState.currentBatchId} started`);
+
+         await pollProgress(AppState.currentBatchId);
+
+       } catch (error) {
+         updateSectionStatus('extractionSectionStatus', 'error');
+         showAlert(`Error starting batch processing: ${error.message}`, 'error');
+       } finally {
+         setButtonLoading(uploadBtn, false);
+         pauseBtn.disabled = true;
+         cancelBtn.disabled = true;
+         AppState.isProcessing = false;
+       }
+     }
+
+     async function pauseProcessing() {
+       if (!AppState.currentBatchId) return;
+
+       try {
+         const response = await fetch(`http://localhost:3000/api/batch-pause/${AppState.currentBatchId}`, {
+           method: 'POST'
+         });
+
+         if (response.ok) {
+           AppState.isPaused = true;
+           document.getElementById('pauseBtn').innerHTML = '<span class="btn-text">▶️ Resume Processing</span>';
+           document.getElementById('pauseBtn').onclick = resumeProcessing;
+           showAlert('Processing paused', 'info');
+           showLiveUpdate('Batch processing paused');
+         }
+       } catch (error) {
+         showAlert(`Error pausing processing: ${error.message}`, 'error');
+       }
+     }
+
+     async function resumeProcessing() {
+       if (!AppState.currentBatchId) return;
+
+       try {
+         const response = await fetch(`http://localhost:3000/api/batch-resume/${AppState.currentBatchId}`, {
+           method: 'POST'
+         });
+
+         if (response.ok) {
+           AppState.isPaused = false;
+           document.getElementById('pauseBtn').innerHTML = '<span class="btn-text">⏸️ Pause Processing</span>';
+           document.getElementById('pauseBtn').onclick = pauseProcessing;
+           showAlert('Processing resumed', 'info');
+           showLiveUpdate('Batch processing resumed');
+         }
+       } catch (error) {
+         showAlert(`Error resuming processing: ${error.message}`, 'error');
+       }
+     }
+
+     // Enhanced progress polling with detailed metrics
+     async function pollProgress(batchId) {
+       const startTime = Date.now();
+       
+       while (!AppState.processingCancelled && !AppState.isPaused) {
+         try {
+           const response = await fetch(`http://localhost:3000/api/batch-progress/${batchId}`);
+           const data = await response.json();
+
+           updateProgress(data.processed, data.total, data.success, data.errors);
+           updateProgressDetails(data, startTime);
+
+           if (data.status === 'completed') {
+             updateSectionStatus('extractionSectionStatus', 'ready');
+             showAlert('Batch processing completed!', 'success');
+             showLiveUpdate(`Batch ${batchId} completed successfully`);
+             showResults(batchId);
+             loadAvailableResumes();
+             updateSystemStats();
+             break;
+           } else if (data.status === 'failed') {
+             updateSectionStatus('extractionSectionStatus', 'error');
+             showAlert('Batch processing failed', 'error');
+             showLiveUpdate(`Batch ${batchId} failed`);
+             break;
+           } else if (data.status === 'paused') {
+             document.getElementById('currentStatus').textContent = 'Paused';
+             showLiveUpdate('Processing is paused');
+           }
+
+           await new Promise(resolve => setTimeout(resolve, 2000));
+         } catch (error) {
+           showAlert(`Error polling progress: ${error.message}`, 'error');
+           await new Promise(resolve => setTimeout(resolve, 5000));
+         }
+       }
+     }
+
+     function updateProgress(processed, total, success, errors) {
+       const progressFill = document.getElementById('progressFill');
+       const progressText = document.getElementById('progressText');
+       const percentage = total > 0 ? Math.round((processed / total) * 100) : 0;
+       
+       progressFill.style.width = percentage + '%';
+       progressText.textContent = percentage + '%';
+       
+       document.getElementById('totalFiles').textContent = total;
+       document.getElementById('processedFiles').textContent = processed;
+       document.getElementById('successFiles').textContent = success;
+       document.getElementById('errorFiles').textContent = errors;
+
+       // Update success rate color
+       const successRate = processed > 0 ? Math.round((success / processed) * 100) : 0;
+       const progressBar = document.querySelector('.progress-fill');
+       
+       if (successRate >= 90) {
+         progressBar.style.background = 'linear-gradient(135deg, #27ae60 0%, #229954 100%)';
+       } else if (successRate >= 70) {
+         progressBar.style.background = 'linear-gradient(135deg, #f39c12 0%, #e67e22 100%)';
+       } else if (successRate < 70 && processed > 0) {
+         progressBar.style.background = 'linear-gradient(135deg, #e74c3c 0%, #c0392b 100%)';
+       }
+     }
+
+     function updateProgressDetails(data, startTime) {
+       const currentTime = Date.now();
+       const elapsed = currentTime - startTime;
+       
+       // Calculate metrics
+       const avgTimePerFile = data.processed > 0 ? elapsed / data.processed : 0;
+       const remainingFiles = data.total - data.processed;
+       const estimatedRemaining = remainingFiles * avgTimePerFile;
+       const throughput = elapsed > 0 ? (data.processed / elapsed) * 60000 : 0; // files per minute
+
+       // Update display
+       document.getElementById('avgTime').textContent = formatDuration(avgTimePerFile) + ' per file';
+       document.getElementById('throughput').textContent = Math.round(throughput) + ' files/min';
+       document.getElementById('currentStatus').textContent = data.status || 'Processing';
+
+       if (estimatedRemaining > 0 && data.processed > 0) {
+         const completionTime = new Date(currentTime + estimatedRemaining);
+         document.getElementById('estimatedCompletion').textContent = completionTime.toLocaleTimeString();
+       } else {
+         document.getElementById('estimatedCompletion').textContent = 'Calculating...';
+       }
+
+       // Update system stats
+       AppState.systemStats.avgProcessingTime = avgTimePerFile;
+       AppState.systemStats.queueLength = remainingFiles;
+       updateSystemStatsDisplay();
+     }
+
+     // Enhanced resume scoring with better error handling
+     async function scoreResume(filename) {
+       if (!AppState.configurationSaved) {
+         showAlert('Please save configuration before scoring resumes', 'error');
+         return;
+       }
+
+       const resumeId = filename.replace(/[^a-zA-Z0-9]/g, '_');
+       const resumeEl = document.getElementById(`resume-${resumeId}`);
+       const button = resumeEl.querySelector('button');
+       
+       const originalText = button.innerHTML;
+       setButtonLoading(button, true);
+
+       try {
+         const response = await fetch('http://localhost:3000/api/score-resume', {
+           method: 'POST',
+           headers: {
+             'Content-Type': 'application/json'
+           },
+           body: JSON.stringify({ filename })
+         });
+
+         const data = await response.json();
+
+         if (response.ok) {
+           const cacheText = data.cached ? ' (cached)' : '';
+           showAlert(`Successfully scored ${filename}${cacheText}`, 'success');
+           showLiveUpdate(`Scored: ${filename}`);
+           loadAvailableResumes();
+           updateSystemStats();
+         } else {
+           throw new Error(data.error || 'Failed to score resume');
+         }
+
+       } catch (error) {
+         showAlert(`Error scoring ${filename}: ${error.message}`, 'error');
+       } finally {
+         setButtonLoading(button, false);
+         button.innerHTML = originalText;
+       }
+     }
+
+     // Enhanced resume list with better UI
+     async function loadAvailableResumes() {
+       const resumesList = document.getElementById('resumesList');
+       
+       // Show loading skeleton
+       resumesList.innerHTML = createLoadingSkeleton();
+
+       try {
+         const response = await fetch('http://localhost:3000/api/available-resumes');
+         const data = await response.json();
+
+         if (data.resumes.length === 0) {
+           resumesList.innerHTML = `
+             <div class="alert alert-info">
+               <strong>No extracted resumes found.</strong><br>
+               Please extract resumes first using the section above.
+             </div>
+           `;
+           return;
+         }
+
+         resumesList.innerHTML = data.resumes.map(resume => createResumeItem(resume)).join('');
+         
+         showAlert(`Loaded ${data.resumes.length} resumes (${data.scored} already scored)`, 'info');
+         updateSectionStatus('scoringSectionStatus', 'ready');
+
+       } catch (error) {
+         resumesList.innerHTML = `
+           <div class="alert alert-error">
+             <strong>Error loading resumes:</strong> ${error.message}
+           </div>
+         `;
+         updateSectionStatus('scoringSectionStatus', 'error');
+       }
+     }
+
+     function createResumeItem(resume) {
+       const resumeId = resume.filename.replace(/[^a-zA-Z0-9]/g, '_');
+       const hasScores = resume.hasScores;
+       const metadata = resume.metadata || {};
+       
+       return `
+         <div class="resume-item" id="resume-${resumeId}">
+           <div class="resume-header">
+             <div class="resume-info">
+               <div class="resume-filename">${resume.filename}</div>
+               <div class="resume-metadata">
+                 <span>📄 ${formatBytes(metadata.size || 0)}</span>
+                 <span>📅 ${metadata.uploadDate || 'Unknown'}</span>
+                 ${metadata.pageCount ? `<span>📋 ${metadata.pageCount} pages</span>` : ''}
+               </div>
+               <div class="resume-status">
+                 <span class="status-badge status-extracted">
+                   <span>✅</span> Extracted
+                 </span>
+                 ${hasScores 
+                   ? '<span class="status-badge status-scored"><span>🎯</span> Scored</span>' 
+                   : '<span class="status-badge status-pending"><span>⏳</span> Not Scored</span>'
+                 }
+               </div>
+               ${hasScores ? createScoreDisplay(resume.scores) : ''}
+             </div>
+             <div class="resume-actions">
+               <button class="btn btn-small ${hasScores ? 'btn-warning' : ''}" 
+                       onclick="scoreResume('${resume.filename}')"
+                       ${!AppState.configurationSaved ? 'disabled title="Please save configuration first"' : ''}>
+                 <span class="btn-text">${hasScores ? '🔄 Re-score' : '🎯 Score with OpenAI'}</span>
+               </button>
+               ${hasScores ? `
+                 <button class="btn btn-small" onclick="viewScoreDetails('${resume.filename}')">
+                   <span class="btn-text">👁️ View Details</span>
+                 </button>
+               ` : ''}
+             </div>
+           </div>
+         </div>
+       `;
+     }
+
+     function createScoreDisplay(scores) {
+       if (!scores) return '';
+       
+       const scoreColor = (score) => {
+         if (score >= 80) return '#27ae60';
+         if (score >= 60) return '#f39c12';
+         return '#e74c3c';
+       };
+
+       return `
+         <div class="score-display">
+           <div class="score-header">
+             <strong>OpenAI Evaluation Results</strong>
+             <span class="score-timestamp">${new Date().toLocaleDateString()}</span>
+           </div>
+           <div class="score-grid">
+             <div class="score-item">
+               <div class="score-label">Skills Match</div>
+               <div class="score-value" style="color: ${scoreColor(scores.skills_match_score)}">${scores.skills_match_score}/100</div>
+             </div>
+             <div class="score-item">
+               <div class="score-label">Experience</div>
+               <div class="score-value" style="color: ${scoreColor(scores.experience_score)}">${scores.experience_score}/100</div>
+             </div>
+             <div class="score-item">
+               <div class="score-label">Overall Score</div>
+               <div class="score-value" style="color: ${scoreColor(scores.overall_score)}">${scores.overall_score}/100</div>
+             </div>
+           </div>
+           <div class="score-reasoning">
+             <strong>AI Reasoning:</strong><br>
+             ${scores.reasoning.substring(0, 200)}${scores.reasoning.length > 200 ? '...' : ''}
+           </div>
+         </div>
+       `;
+     }
+
+     function createLoadingSkeleton() {
+       return Array(3).fill().map(() => `
+         <div class="resume-item">
+           <div class="skeleton skeleton-title"></div>
+           <div class="skeleton skeleton-text"></div>
+           <div class="skeleton skeleton-text" style="width: 60%;"></div>
+         </div>
+       `).join('');
+     }
+
+     // System status and health monitoring
+     async function checkSystemHealth() {
+       try {
+         const response = await fetch('http://localhost:3000/api/health');
+         const health = await response.json();
+
+         updateSystemStatus(health.status === 'healthy');
+         
+         if (health.services) {
+           updateAPIStatus(health.services.extraction === 'available');
+         }
+
+       } catch (error) {
+         updateSystemStatus(false);
+         updateAPIStatus(false);
+       }
+     }
+
+     function updateSystemStatus(isHealthy) {
+       const statusDot = document.getElementById('systemStatus');
+       const statusText = document.getElementById('systemStatusText');
+       
+       if (isHealthy) {
+         statusDot.className = 'status-dot status-healthy';
+         statusText.textContent = 'System Ready';
+       } else {
+         statusDot.className = 'status-dot status-unhealthy';
+         statusText.textContent = 'System Issues';
+       }
+     }
+
+     function updateAPIStatus(isHealthy) {
+       const statusDot = document.getElementById('apiStatus');
+       const statusText = document.getElementById('apiStatusText');
+       
+       if (isHealthy) {
+         statusDot.className = 'status-dot status-healthy';
+         statusText.textContent = 'API Healthy';
+       } else {
+         statusDot.className = 'status-dot status-degraded';
+         statusText.textContent = 'API Issues';
+       }
+     }
+
+     // Enhanced system statistics
+     function updateSystemStats() {
+       AppState.systemStats.totalProcessed++;
+       updateSystemStatsDisplay();
+     }
+
+     function updateSystemStatsDisplay() {
+       document.getElementById('totalProcessed').textContent = AppState.systemStats.totalProcessed;
+       document.getElementById('successRate').textContent = Math.round(AppState.systemStats.successRate) + '%';
+       document.getElementById('avgProcessingTime').textContent = formatDuration(AppState.systemStats.avgProcessingTime);
+       document.getElementById('queueLength').textContent = AppState.systemStats.queueLength;
+     }
+
+     // Utility functions
+     function updateConfigStatus(hasConfig) {
+       const statusEl = document.getElementById('configStatus');
+       if (hasConfig) {
+         statusEl.className = 'config-status config-ready';
+         statusEl.innerHTML = '✅ Configuration saved and ready for scoring';
+       } else {
+         statusEl.className = 'config-status config-missing';
+         statusEl.innerHTML = '⚠️ Please configure job description and evaluation rubric before scoring resumes';
+       }
+     }
+
+     function updateSectionStatus(sectionId, status) {
+       const statusEl = document.getElementById(sectionId);
+       statusEl.className = `section-status status-${status}`;
+       
+       const statusText = {
+         ready: 'Ready',
+         processing: 'Processing',
+         error: 'Error',
+         warning: 'Warning'
+       };
+       
+       statusEl.textContent = statusText[status] || status;
+     }
+
+     function setButtonLoading(button, isLoading) {
+       if (isLoading) {
+         button.classList.add('btn-loading');
+         button.disabled = true;
+       } else {
+         button.classList.remove('btn-loading');
+         button.disabled = false;
+       }
+     }
+
+     function showAlert(message, type, dismissible = true) {
+       // Remove existing alerts
+       const existingAlerts = document.querySelectorAll('.alert.temp-alert');
+       existingAlerts.forEach(alert => alert.remove());
+
+       // Create new alert
+       const alert = document.createElement('div');
+       alert.className = `alert alert-${type} temp-alert${dismissible ? ' alert-dismissible' : ''}`;
+       
+       let alertContent = message;
+       if (dismissible) {
+         alertContent += '<button class="alert-close" onclick="this.parentElement.remove()">×</button>';
+       }
+       
+       alert.innerHTML = alertContent;
+       
+       // Insert at top of main content
+       const mainContent = document.querySelector('.main-content');
+       mainContent.insertBefore(alert, mainContent.firstChild);
+
+       // Auto-remove after 5 seconds for non-error alerts
+       if (type !== 'error' && dismissible) {
+         setTimeout(() => {
+           if (alert.parentNode) {
+             alert.remove();
+           }
+         }, 5000);
+       }
+
+       console.log(`[${type.toUpperCase()}] ${message}`);
+     }
+
+     function showLiveUpdate(message) {
+       if (!AppState.liveUpdatesVisible) return;
+
+       const updatesPanel = document.getElementById('liveUpdates');
+       const updateContent = document.getElementById('updateContent');
+       
+       updateContent.textContent = `${new Date().toLocaleTimeString()}: ${message}`;
+       updatesPanel.classList.add('show');
+
+       // Auto-hide after 3 seconds
+       setTimeout(() => {
+         updatesPanel.classList.remove('show');
+       }, 3000);
+     }
+
+     function hideLiveUpdates() {
+       AppState.liveUpdatesVisible = false;
+       document.getElementById('liveUpdates').classList.remove('show');
+     }
+
+     // Character counters for textareas
+     function setupCharacterCounters() {
+       const jobDesc = document.getElementById('jobDescription');
+       const rubric = document.getElementById('evaluationRubric');
+       const jobDescCount = document.getElementById('jobDescCount');
+       const rubricCount = document.getElementById('rubricCount');
+
+       jobDesc.addEventListener('input', () => {
+         jobDescCount.textContent = `${jobDesc.value.length}/5000`;
+       });
+
+       rubric.addEventListener('input', () => {
+        rubricCount.textContent = `${rubric.value.length}/10000`;
+       });
+     }
+
+     // Format helper functions
+     function formatBytes(bytes) {
+       if (bytes === 0) return '0 Bytes';
+       const k = 1024;
+       const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+       const i = Math.floor(Math.log(bytes) / Math.log(k));
+       return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+     }
+
+     function formatDuration(ms) {
+       if (ms < 1000) return '< 1s';
+       const seconds = Math.floor(ms / 1000);
+       const minutes = Math.floor(seconds / 60);
+       const hours = Math.floor(minutes / 60);
+
+       if (hours > 0) {
+         return `${hours}h ${minutes % 60}m`;
+       } else if (minutes > 0) {
+         return `${minutes}m ${seconds % 60}s`;
+       } else {
+         return `${seconds}s`;
+       }
+     }
+
+     // Additional functionality placeholders
+     async function clearConfiguration() {
+       try {
+         const response = await fetch('http://localhost:3000/api/config', {
+           method: 'DELETE'
+         });
+
+         if (response.ok) {
+           AppState.configurationSaved = false;
+           updateConfigStatus(false);
+           updateSectionStatus('configSectionStatus', 'ready');
+           document.getElementById('jobDescription').value = '';
+           document.getElementById('evaluationRubric').value = '';
+           document.getElementById('jobDescCount').textContent = '0/5000';
+           document.getElementById('rubricCount').textContent = '0/10000';
+           showAlert('Configuration cleared', 'info');
+         }
+       } catch (error) {
+         showAlert(`Error clearing configuration: ${error.message}`, 'error');
+       }
+     }
+
+     function cancelProcessing() {
+       AppState.processingCancelled = true;
+       if (AppState.currentBatchId) {
+         fetch(`http://localhost:3000/api/batch-cancel/${AppState.currentBatchId}`, {
+           method: 'POST'
+         });
+       }
+       updateSectionStatus('extractionSectionStatus', 'ready');
+       showAlert('Processing cancelled by user', 'info');
+       showLiveUpdate('Batch processing cancelled');
+     }
+
+     function showResults(batchId) {
+       const resultsSection = document.getElementById('resultsSection');
+       const downloadJson = document.getElementById('downloadJson');
+       const downloadReport = document.getElementById('downloadReport');
+
+       downloadJson.href = `http://localhost:3000/api/batch-download/${batchId}/json`;
+       downloadReport.href = `http://localhost:3000/api/batch-download/${batchId}/report`;
+
+       resultsSection.style.display = 'block';
+     }
+
+     async function scoreAllResumes() {
+       if (!AppState.configurationSaved) {
+         showAlert('Please save configuration before scoring resumes', 'error');
+         return;
+       }
+
+       try {
+         const response = await fetch('http://localhost:3000/api/available-resumes');
+         const data = await response.json();
+         
+         const filenames = data.resumes.map(r => r.filename);
+         
+         if (filenames.length === 0) {
+           showAlert('No resumes available for scoring', 'error');
+           return;
+         }
+
+         const scoreAllBtn = document.getElementById('scoreAllBtn');
+         setButtonLoading(scoreAllBtn, true);
+         showLiveUpdate(`Starting batch scoring of ${filenames.length} resumes`);
+
+         const batchResponse = await fetch('http://localhost:3000/api/score-batch', {
+           method: 'POST',
+           headers: {
+             'Content-Type': 'application/json'
+           },
+           body: JSON.stringify({ filenames })
+         });
+
+         const batchData = await batchResponse.json();
+
+         if (batchResponse.ok) {
+           showAlert(`Batch scoring completed: ${batchData.summary.successful}/${batchData.summary.total} successful`, 'success');
+           showLiveUpdate(`Batch scoring completed: ${batchData.summary.successful} successful`);
+           loadAvailableResumes();
+           updateSystemStats();
+         } else {
+           throw new Error(batchData.error || 'Batch scoring failed');
+         }
+
+       } catch (error) {
+         showAlert(`Error in batch scoring: ${error.message}`, 'error');
+       } finally {
+         const scoreAllBtn = document.getElementById('scoreAllBtn');
+         setButtonLoading(scoreAllBtn, false);
+       }
+     }
+
+     function toggleProgressDetails() {
+       const details = document.getElementById('progressDetails');
+       details.style.display = details.style.display === 'none' ? 'grid' : 'none';
+     }
+
+     async function exportResults() {
+       showAlert('Export functionality coming soon!', 'info');
+     }
+
+     function viewScoreDetails(filename) {
+       showAlert(`Detailed view for ${filename} coming soon!`, 'info');
+     }
+
+     // Check configuration on page load
+     async function checkConfiguration() {
+       try {
+         const response = await fetch('http://localhost:3000/api/config');
+         const data = await response.json();
+         
+         if (response.ok && data.hasConfig) {
+           AppState.configurationSaved = true;
+           updateConfigStatus(true);
+           updateSectionStatus('configSectionStatus', 'ready');
+         }
+       } catch (error) {
+         console.log('No existing configuration found');
+       }
+     }
+
+     // Initialize application
+     document.addEventListener('DOMContentLoaded', function() {
+       setupCharacterCounters();
+       checkConfiguration();
+       checkSystemHealth();
+       loadAvailableResumes();
+       updateSystemStatsDisplay();
+       
+       // Start health check interval
+       setInterval(checkSystemHealth, 30000); // Every 30 seconds
+       
+       showLiveUpdate('System initialized and ready');
+     });
+   </script>
+ </body>
 </html>
