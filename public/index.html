@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Batch Resume Parser</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        padding: 2rem;
+        background: #f5f7fa;
+      }
+      .container {
+        max-width: 800px;
+        margin: auto;
+        background: white;
+        padding: 2rem;
+        border-radius: 10px;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+      }
+      .upload-section {
+        margin-bottom: 2rem;
+      }
+      input[type="file"] {
+        display: block;
+        margin-bottom: 1rem;
+      }
+      button {
+        background: #007bff;
+        color: white;
+        border: none;
+        padding: 0.6rem 1.2rem;
+        border-radius: 4px;
+        cursor: pointer;
+        margin-right: 1rem;
+      }
+      button:hover {
+        background: #0056b3;
+      }
+      button:disabled {
+        background: #ccc;
+        cursor: not-allowed;
+      }
+      .progress-section {
+        margin: 2rem 0;
+        padding: 1rem;
+        background: #f8f9fa;
+        border-radius: 5px;
+      }
+      .progress-bar {
+        width: 100%;
+        height: 20px;
+        background: #e9ecef;
+        border-radius: 10px;
+        overflow: hidden;
+        margin: 1rem 0;
+      }
+      .progress-fill {
+        height: 100%;
+        background: #007bff;
+        transition: width 0.3s ease;
+      }
+      .stats {
+        display: flex;
+        justify-content: space-between;
+        margin: 1rem 0;
+      }
+      .stat-item {
+        text-align: center;
+        padding: 1rem;
+        background: white;
+        border-radius: 5px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      }
+      .stat-number {
+        font-size: 2rem;
+        font-weight: bold;
+        color: #007bff;
+      }
+      .stat-label {
+        font-size: 0.9rem;
+        color: #666;
+      }
+      .results-section {
+        margin-top: 2rem;
+      }
+      .download-links {
+        display: flex;
+        gap: 1rem;
+        margin: 1rem 0;
+      }
+      .download-btn {
+        background: #28a745;
+        color: white;
+        text-decoration: none;
+        padding: 0.5rem 1rem;
+        border-radius: 4px;
+        font-size: 0.9rem;
+      }
+      .download-btn:hover {
+        background: #218838;
+      }
+      .log-section {
+        background: #282a36;
+        color: #f8f8f2;
+        padding: 1rem;
+        border-radius: 5px;
+        height: 300px;
+        overflow-y: auto;
+        font-family: monospace;
+        font-size: 0.9rem;
+        margin-top: 1rem;
+      }
+      .log-entry {
+        margin: 0.2rem 0;
+        padding: 0.2rem 0;
+      }
+      .log-success { color: #50fa7b; }
+      .log-error { color: #ff5555; }
+      .log-info { color: #8be9fd; }
+      .log-warning { color: #ffb86c; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h2>📁 Batch Resume JSON Extractor</h2>
+      
+      <div class="upload-section">
+        <h3>Select Resume Folder</h3>
+        <input type="file" id="resumeFolder" webkitdirectory directory multiple />
+        <button onclick="uploadBatch()" id="uploadBtn">Process All Resumes</button>
+        <button onclick="cancelProcessing()" id="cancelBtn" disabled>Cancel Processing</button>
+      </div>
+
+      <div class="progress-section" id="progressSection" style="display: none;">
+        <h3>Processing Progress</h3>
+        <div class="progress-bar">
+          <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+        </div>
+        <div class="stats">
+          <div class="stat-item">
+            <div class="stat-number" id="totalFiles">0</div>
+            <div class="stat-label">Total Files</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-number" id="processedFiles">0</div>
+            <div class="stat-label">Processed</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-number" id="successFiles">0</div>
+            <div class="stat-label">Success</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-number" id="errorFiles">0</div>
+            <div class="stat-label">Errors</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="results-section" id="resultsSection" style="display: none;">
+        <h3>Results</h3>
+        <div class="download-links">
+          <a href="#" class="download-btn" id="downloadJson">Download JSON Results</a>
+          <a href="#" class="download-btn" id="downloadReport">Download Processing Report</a>
+        </div>
+      </div>
+
+      <div class="log-section" id="logSection">
+        <div class="log-entry log-info">Ready to process resumes...</div>
+      </div>
+    </div>
+
+    <script>
+      let processingCancelled = false;
+      let currentBatchId = null;
+
+      function addLog(message, type = 'info') {
+        const logSection = document.getElementById('logSection');
+        const logEntry = document.createElement('div');
+        logEntry.className = `log-entry log-${type}`;
+        logEntry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+        logSection.appendChild(logEntry);
+        logSection.scrollTop = logSection.scrollHeight;
+      }
+
+      function updateProgress(processed, total, success, errors) {
+        const progressFill = document.getElementById('progressFill');
+        const percentage = total > 0 ? (processed / total) * 100 : 0;
+        progressFill.style.width = percentage + '%';
+        
+        document.getElementById('totalFiles').textContent = total;
+        document.getElementById('processedFiles').textContent = processed;
+        document.getElementById('successFiles').textContent = success;
+        document.getElementById('errorFiles').textContent = errors;
+      }
+
+      async function uploadBatch() {
+        const folderInput = document.getElementById('resumeFolder');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const cancelBtn = document.getElementById('cancelBtn');
+        const progressSection = document.getElementById('progressSection');
+        const resultsSection = document.getElementById('resultsSection');
+
+        if (!folderInput.files.length) {
+          alert('Please select a folder containing resume files.');
+          return;
+        }
+
+        // Filter PDF files
+        const pdfFiles = Array.from(folderInput.files).filter(file => 
+          file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
+        );
+
+        if (pdfFiles.length === 0) {
+          alert('No PDF files found in the selected folder.');
+          return;
+        }
+
+        processingCancelled = false;
+        uploadBtn.disabled = true;
+        cancelBtn.disabled = false;
+        progressSection.style.display = 'block';
+        resultsSection.style.display = 'none';
+
+        addLog(`Found ${pdfFiles.length} PDF files to process`, 'info');
+
+        const formData = new FormData();
+        pdfFiles.forEach(file => formData.append('resumes', file));
+
+        try {
+          const response = await fetch('http://localhost:3000/api/batch-extract', {
+            method: 'POST',
+            body: formData
+          });
+
+          if (!response.ok) {
+            throw new Error(`Server error: ${response.status}`);
+          }
+
+          const data = await response.json();
+          currentBatchId = data.batchId;
+          addLog(`Batch processing started with ID: ${currentBatchId}`, 'success');
+
+          // Start polling for progress
+          await pollProgress(currentBatchId);
+
+        } catch (error) {
+          addLog(`Error starting batch processing: ${error.message}`, 'error');
+        } finally {
+          uploadBtn.disabled = false;
+          cancelBtn.disabled = true;
+        }
+      }
+
+      async function pollProgress(batchId) {
+        while (!processingCancelled) {
+          try {
+            const response = await fetch(`http://localhost:3000/api/batch-progress/${batchId}`);
+            const data = await response.json();
+
+            updateProgress(data.processed, data.total, data.success, data.errors);
+
+            if (data.status === 'completed') {
+              addLog('Batch processing completed!', 'success');
+              showResults(batchId);
+              break;
+            } else if (data.status === 'failed') {
+              addLog('Batch processing failed', 'error');
+              break;
+            }
+
+            // Add recent log entries
+            if (data.recentLogs) {
+              data.recentLogs.forEach(log => addLog(log.message, log.type));
+            }
+
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          } catch (error) {
+            addLog(`Error polling progress: ${error.message}`, 'error');
+            await new Promise(resolve => setTimeout(resolve, 5000));
+          }
+        }
+      }
+
+      function showResults(batchId) {
+        const resultsSection = document.getElementById('resultsSection');
+        const downloadJson = document.getElementById('downloadJson');
+        const downloadReport = document.getElementById('downloadReport');
+
+        downloadJson.href = `http://localhost:3000/api/batch-download/${batchId}/json`;
+        downloadReport.href = `http://localhost:3000/api/batch-download/${batchId}/report`;
+
+        resultsSection.style.display = 'block';
+      }
+
+      function cancelProcessing() {
+        processingCancelled = true;
+        if (currentBatchId) {
+          fetch(`http://localhost:3000/api/batch-cancel/${currentBatchId}`, {
+            method: 'POST'
+          });
+        }
+        addLog('Processing cancelled by user', 'warning');
+      }
+    </script>
+  </body>
+</html>
