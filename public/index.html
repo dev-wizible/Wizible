@@ -1,1562 +1,963 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Resume Extraction & AI Scoring System</title>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bulk Resume Processor v2.0</title>
     <style>
-      * {
-        box-sizing: border-box;
-        margin: 0;
-        padding: 0;
-      }
-
-      body {
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-          sans-serif;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        min-height: 100vh;
-        padding: 2rem;
-      }
-
-      .container {
-        max-width: 1200px;
-        margin: 0 auto;
-        background: white;
-        border-radius: 16px;
-        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-        overflow: hidden;
-      }
-
-      .header {
-        background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
-        color: white;
-        padding: 2rem;
-        text-align: center;
-      }
-
-      .header h1 {
-        font-size: 2rem;
-        margin-bottom: 0.5rem;
-        font-weight: 700;
-      }
-
-      .header p {
-        font-size: 1rem;
-        opacity: 0.9;
-      }
-
-      .main-content {
-        padding: 2rem;
-      }
-
-      .section {
-        margin-bottom: 2rem;
-        padding: 1.5rem;
-        border: 2px solid #f1f3f4;
-        border-radius: 12px;
-        transition: all 0.3s ease;
-      }
-
-      .section:hover {
-        border-color: #3498db;
-        box-shadow: 0 4px 12px rgba(52, 152, 219, 0.1);
-      }
-
-      .section-title {
-        font-size: 1.2rem;
-        color: #2c3e50;
-        margin-bottom: 1rem;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        font-weight: 600;
-      }
-
-      .form-group {
-        margin-bottom: 1.5rem;
-      }
-
-      .form-label {
-        display: block;
-        margin-bottom: 0.5rem;
-        font-weight: 600;
-        color: #34495e;
-      }
-
-      .form-input,
-      .form-textarea {
-        width: 100%;
-        padding: 1rem;
-        border: 2px solid #e0e6ed;
-        border-radius: 8px;
-        font-size: 1rem;
-        transition: all 0.3s ease;
-        font-family: inherit;
-      }
-
-      .form-textarea {
-        min-height: 120px;
-        resize: vertical;
-      }
-
-      .form-input:focus,
-      .form-textarea:focus {
-        outline: none;
-        border-color: #3498db;
-        box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
-      }
-
-      .file-upload {
-        padding: 2rem;
-        border: 2px dashed #bdc3c7;
-        border-radius: 8px;
-        text-align: center;
-        transition: all 0.3s ease;
-        cursor: pointer;
-      }
-
-      .file-upload:hover {
-        border-color: #3498db;
-        background: #f8f9fa;
-      }
-
-      .file-upload.dragover {
-        border-color: #27ae60;
-        background: #e8f5e8;
-      }
-
-      .btn {
-        background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
-        color: white;
-        border: none;
-        padding: 1rem 2rem;
-        border-radius: 8px;
-        font-size: 1rem;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        display: inline-flex;
-        align-items: center;
-        gap: 0.5rem;
-      }
-
-      .btn:hover:not(:disabled) {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 16px rgba(52, 152, 219, 0.3);
-      }
-
-      .btn:disabled {
-        background: linear-gradient(135deg, #bdc3c7 0%, #95a5a6 100%);
-        cursor: not-allowed;
-        transform: none;
-        box-shadow: none;
-      }
-
-      .btn-success {
-        background: linear-gradient(135deg, #27ae60 0%, #229954 100%);
-      }
-
-      .btn-success:hover:not(:disabled) {
-        box-shadow: 0 6px 16px rgba(39, 174, 96, 0.3);
-      }
-
-      .btn-danger {
-        background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
-      }
-
-      .btn-danger:hover:not(:disabled) {
-        box-shadow: 0 6px 16px rgba(231, 76, 60, 0.3);
-      }
-
-      .pipeline-section {
-        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-        border-radius: 12px;
-        padding: 1.5rem;
-        margin: 2rem 0;
-        display: none;
-      }
-
-      .pipeline-controls {
-        display: flex;
-        gap: 1rem;
-        margin-bottom: 1.5rem;
-        flex-wrap: wrap;
-      }
-
-      .timer-display {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 1rem;
-        margin-bottom: 1.5rem;
-      }
-
-      .timer-card {
-        background: white;
-        padding: 1.5rem;
-        border-radius: 8px;
-        text-align: center;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-        border-left: 4px solid #3498db;
-      }
-
-      .timer-value {
-        font-size: 2rem;
-        font-weight: bold;
-        color: #2c3e50;
-        font-family: "Courier New", monospace;
-      }
-
-      .timer-label {
-        font-size: 0.9rem;
-        color: #666;
-        margin-top: 0.5rem;
-      }
-
-      .pipeline-flow {
-        display: flex;
-        gap: 1rem;
-        margin-bottom: 1.5rem;
-        overflow-x: auto;
-        padding: 1rem 0;
-      }
-
-      .pipeline-stage {
-        min-width: 200px;
-        background: white;
-        border-radius: 8px;
-        padding: 1rem;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-      }
-
-      .stage-title {
-        font-weight: 600;
-        margin-bottom: 0.5rem;
-        color: #2c3e50;
-        text-align: center;
-      }
-
-      .stage-queue {
-        min-height: 100px;
-        border: 2px dashed #dee2e6;
-        border-radius: 4px;
-        padding: 0.5rem;
-        display: flex;
-        flex-direction: column;
-        gap: 0.5rem;
-      }
-
-      .stage-queue.active {
-        border-color: #3498db;
-        background: #f8f9fa;
-      }
-
-      .queue-item {
-        background: #e9ecef;
-        padding: 0.5rem;
-        border-radius: 4px;
-        font-size: 0.8rem;
-        text-align: center;
-        transition: all 0.3s ease;
-      }
-
-      .queue-item.processing {
-        background: #3498db;
-        color: white;
-        animation: pulse 1.5s infinite;
-      }
-
-      .queue-item.completed {
-        background: #27ae60;
-        color: white;
-      }
-
-      .queue-item.error {
-        background: #e74c3c;
-        color: white;
-      }
-
-      @keyframes pulse {
-        0% {
-          opacity: 1;
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
         }
-        50% {
-          opacity: 0.7;
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 1rem;
         }
-        100% {
-          opacity: 1;
-        }
-      }
 
-      .progress-section {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 1rem;
-        margin-bottom: 1.5rem;
-      }
-
-      .progress-group {
-        background: white;
-        padding: 1rem;
-        border-radius: 8px;
-      }
-
-      .progress-title {
-        font-weight: 600;
-        margin-bottom: 0.5rem;
-        color: #2c3e50;
-      }
-
-      .progress-bar {
-        width: 100%;
-        height: 8px;
-        background: #e9ecef;
-        border-radius: 4px;
-        overflow: hidden;
-        margin: 0.5rem 0;
-      }
-
-      .progress-fill {
-        height: 100%;
-        background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
-        transition: width 0.3s ease;
-        border-radius: 4px;
-      }
-
-      .progress-fill.extraction {
-        background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
-      }
-
-      .progress-fill.scoring {
-        background: linear-gradient(135deg, #27ae60 0%, #229954 100%);
-      }
-
-      .status-log {
-        background: #f8f9fa;
-        border: 1px solid #dee2e6;
-        border-radius: 8px;
-        height: 300px;
-        overflow-y: auto;
-        padding: 1rem;
-        font-family: "Courier New", monospace;
-        font-size: 0.9rem;
-        line-height: 1.4;
-      }
-
-      .log-entry {
-        margin-bottom: 0.5rem;
-        padding: 0.25rem 0;
-      }
-
-      .log-entry.success {
-        color: #27ae60;
-      }
-
-      .log-entry.error {
-        color: #e74c3c;
-      }
-
-      .log-entry.info {
-        color: #3498db;
-      }
-
-      .log-entry.warning {
-        color: #f39c12;
-      }
-
-      .results-section {
-        display: none;
-        background: #e8f5e8;
-        border: 2px solid #27ae60;
-        border-radius: 12px;
-        padding: 1.5rem;
-        margin-top: 2rem;
-        text-align: center;
-      }
-
-      .results-buttons {
-        display: flex;
-        gap: 1rem;
-        justify-content: center;
-        flex-wrap: wrap;
-        margin-top: 1rem;
-      }
-
-      .file-list {
-        background: #f8f9fa;
-        border-radius: 8px;
-        padding: 1rem;
-        margin-top: 1rem;
-        max-height: 200px;
-        overflow-y: auto;
-      }
-
-      .file-item {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 0.5rem;
-        border-bottom: 1px solid #dee2e6;
-      }
-
-      .file-item:last-child {
-        border-bottom: none;
-      }
-
-      .file-name {
-        font-weight: 500;
-        color: #2c3e50;
-      }
-
-      .file-size {
-        font-size: 0.8rem;
-        color: #666;
-      }
-
-      @media (max-width: 768px) {
         .container {
-          margin: 1rem;
-          border-radius: 12px;
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
         }
 
         .header {
-          padding: 1.5rem;
+            background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+            color: white;
+            padding: 2rem;
+            text-align: center;
         }
 
         .header h1 {
-          font-size: 1.5rem;
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            font-weight: 800;
+        }
+
+        .header .version {
+            font-size: 1.1rem;
+            opacity: 0.9;
+            font-weight: 500;
         }
 
         .main-content {
-          padding: 1rem;
+            padding: 2rem;
         }
 
-        .timer-display {
-          grid-template-columns: 1fr;
+        .section {
+            margin-bottom: 2rem;
+            padding: 1.5rem;
+            border: 2px solid #f1f3f4;
+            border-radius: 12px;
+            transition: all 0.3s ease;
+        }
+
+        .section:hover {
+            border-color: #3498db;
+            box-shadow: 0 4px 12px rgba(52, 152, 219, 0.1);
+        }
+
+        .section-title {
+            font-size: 1.3rem;
+            color: #2c3e50;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-weight: 700;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: #34495e;
+        }
+
+        .form-input, .form-textarea {
+            width: 100%;
+            padding: 1rem;
+            border: 2px solid #e0e6ed;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            font-family: inherit;
+        }
+
+        .form-textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+
+        .form-input:focus, .form-textarea:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+        }
+
+        .file-upload {
+            padding: 2rem;
+            border: 2px dashed #bdc3c7;
+            border-radius: 8px;
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .file-upload:hover {
+            border-color: #3498db;
+            background: #f8f9fa;
+        }
+
+        .file-upload.dragover {
+            border-color: #27ae60;
+            background: #e8f5e8;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(52, 152, 219, 0.3);
+        }
+
+        .btn:disabled {
+            background: linear-gradient(135deg, #bdc3c7 0%, #95a5a6 100%);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #27ae60 0%, #229954 100%);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+        }
+
+        .btn-warning {
+            background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
         }
 
         .progress-section {
-          grid-template-columns: 1fr;
+            display: none;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-radius: 12px;
+            padding: 2rem;
+            margin: 2rem 0;
         }
 
-        .pipeline-flow {
-          flex-direction: column;
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
         }
 
-        .pipeline-stage {
-          min-width: auto;
+        .metric-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            border-left: 4px solid #3498db;
+        }
+
+        .metric-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #2c3e50;
+            font-family: "Courier New", monospace;
+        }
+
+        .metric-label {
+            font-size: 0.9rem;
+            color: #666;
+            margin-top: 0.5rem;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 12px;
+            background: #e9ecef;
+            border-radius: 6px;
+            overflow: hidden;
+            margin: 1rem 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+            transition: width 0.3s ease;
+            border-radius: 6px;
+        }
+
+        .progress-fill.success {
+            background: linear-gradient(135deg, #27ae60 0%, #229954 100%);
+        }
+
+        .status-log {
+            background: #2c3e50;
+            color: #ecf0f1;
+            border-radius: 8px;
+            height: 300px;
+            overflow-y: auto;
+            padding: 1rem;
+            font-family: "Courier New", monospace;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+
+        .log-entry {
+            margin-bottom: 0.5rem;
+            padding: 0.25rem 0;
+        }
+
+        .log-entry.success { color: #2ecc71; }
+        .log-entry.error { color: #e74c3c; }
+        .log-entry.info { color: #3498db; }
+        .log-entry.warning { color: #f39c12; }
+
+        .controls-section {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+        }
+
+        .results-section {
+            display: none;
+            background: #e8f5e8;
+            border: 2px solid #27ae60;
+            border-radius: 12px;
+            padding: 2rem;
+            margin-top: 2rem;
+            text-align: center;
         }
 
         .results-buttons {
-          flex-direction: column;
-          align-items: center;
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 1rem;
         }
 
-        .pipeline-controls {
-          flex-direction: column;
+        .file-list {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-top: 1rem;
+            max-height: 200px;
+            overflow-y: auto;
         }
-      }
 
-      .hidden {
-        display: none !important;
-      }
+        .file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .file-item:last-child {
+            border-bottom: none;
+        }
+
+        .file-name {
+            font-weight: 500;
+            color: #2c3e50;
+        }
+
+        .file-size {
+            font-size: 0.8rem;
+            color: #666;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .performance-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .stat-item {
+            background: white;
+            padding: 1rem;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #3498db;
+        }
+
+        .stat-label {
+            font-size: 0.8rem;
+            color: #666;
+            margin-top: 0.25rem;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2rem;
+            }
+
+            .main-content {
+                padding: 1rem;
+            }
+
+            .metrics-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .controls-section {
+                flex-direction: column;
+            }
+
+            .results-buttons {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
     </style>
-  </head>
-  <body>
+</head>
+<body>
     <div class="container">
-      <div class="header">
-        <h1>🤖 Resume Processing Pipeline</h1>
-        <p>
-          Sequential resume extraction and AI scoring with real-time tracking
-        </p>
-      </div>
-
-      <div class="main-content">
-        <!-- Configuration Section -->
-        <div class="section">
-          <h2 class="section-title">
-            <span>⚙️</span>
-            Configuration
-          </h2>
-
-          <div class="form-group">
-            <label class="form-label" for="jobDescription"
-              >Job Description</label
-            >
-            <textarea
-              id="jobDescription"
-              class="form-textarea"
-              placeholder="Enter the complete job description here..."
-              rows="6"
-            ></textarea>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label" for="evaluationRubric"
-              >Evaluation Rubric</label
-            >
-            <textarea
-              id="evaluationRubric"
-              class="form-textarea"
-              placeholder="Enter your evaluation criteria and scoring methodology..."
-              rows="8"
-            ></textarea>
-          </div>
+        <div class="header">
+            <h1>🚀 Bulk Resume Processor</h1>
+            <p class="version">v2.0 - Production Ready for 500-1000+ Resumes</p>
         </div>
 
-        <!-- Resume Upload Section -->
-        <div class="section">
-          <h2 class="section-title">
-            <span>📄</span>
-            Upload Resumes
-          </h2>
+        <div class="main-content">
+            <!-- Configuration Section -->
+            <div class="section">
+                <h2 class="section-title">
+                    <span>⚙️</span>
+                    Job Configuration
+                </h2>
 
-          <div class="form-group">
-            <label class="form-label">Upload Resumes (PDFs Only)</label>
-            <div class="file-upload" id="fileUpload">
-              <div>
-                <strong>📁 Drop PDF files here or click to browse</strong>
-                <br />
-                <span style="color: #666; font-size: 0.9rem"
-                  >Maximum 10MB per file</span
-                >
-              </div>
-              <input
-                type="file"
-                id="resumeFiles"
-                multiple
-                accept=".pdf"
-                style="display: none"
-              />
+                <div class="form-group">
+                    <label class="form-label" for="jobDescription">Job Description</label>
+                    <textarea
+                        id="jobDescription"
+                        class="form-textarea"
+                        placeholder="Enter the complete job description here..."
+                        rows="6"
+                    ></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="evaluationRubric">Evaluation Rubric</label>
+                    <textarea
+                        id="evaluationRubric"
+                        class="form-textarea"
+                        placeholder="Enter your evaluation criteria and scoring methodology..."
+                        rows="8"
+                    ></textarea>
+                </div>
+
+                <button id="uploadConfig" class="btn">
+                    <span>💾</span>
+                    Save Configuration
+                </button>
             </div>
-            <div id="fileList" class="file-list hidden"></div>
-          </div>
 
-          <button id="startProcessing" class="btn" disabled>
-            <span>🚀</span>
-            Start Pipeline Processing
-          </button>
+            <!-- Resume Upload Section -->
+            <div class="section">
+                <h2 class="section-title">
+                    <span>📄</span>
+                    Upload Resumes
+                </h2>
+
+                <div class="form-group">
+                    <label class="form-label">Upload Resume PDFs</label>
+                    <div class="file-upload" id="fileUpload">
+                        <div>
+                            <strong>📁 Drop PDF files here or click to browse</strong>
+                            <br>
+                            <span style="color: #666; font-size: 0.9rem">
+                                Maximum 1000 files, 10MB per file
+                            </span>
+                        </div>
+                        <input
+                            type="file"
+                            id="resumeFiles"
+                            multiple
+                            accept=".pdf"
+                            style="display: none"
+                        />
+                    </div>
+                    <div id="fileList" class="file-list hidden"></div>
+                </div>
+
+                <button id="createBatch" class="btn" disabled>
+                    <span>🚀</span>
+                    Create Batch
+                </button>
+            </div>
+
+            <!-- Progress Section -->
+            <div id="progressSection" class="progress-section">
+                <h3>📊 Processing Progress</h3>
+                
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div id="totalFiles" class="metric-value">0</div>
+                        <div class="metric-label">Total Files</div>
+                    </div>
+                    <div class="metric-card">
+                        <div id="completedFiles" class="metric-value">0</div>
+                        <div class="metric-label">Completed</div>
+                    </div>
+                    <div class="metric-card">
+                        <div id="failedFiles" class="metric-value">0</div>
+                        <div class="metric-label">Failed</div>
+                    </div>
+                    <div class="metric-card">
+                        <div id="throughput" class="metric-value">0</div>
+                        <div class="metric-label">Files/Hour</div>
+                    </div>
+                    <div class="metric-card">
+                        <div id="elapsedTime" class="metric-value">00:00:00</div>
+                        <div class="metric-label">Elapsed Time</div>
+                    </div>
+                    <div class="metric-card">
+                        <div id="estimatedTime" class="metric-value">--:--:--</div>
+                        <div class="metric-label">ETA</div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Overall Progress</label>
+                    <div class="progress-bar">
+                        <div id="overallProgress" class="progress-fill" style="width: 0%"></div>
+                    </div>
+                    <div id="progressText">0 / 0 files processed</div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Success Rate</label>
+                    <div class="progress-bar">
+                        <div id="successProgress" class="progress-fill success" style="width: 0%"></div>
+                    </div>
+                    <div id="successText">0 / 0 successful</div>
+                </div>
+
+                <div class="controls-section">
+                    <button id="startBatch" class="btn btn-success">
+                        <span>▶️</span>
+                        Start Processing
+                    </button>
+                    <button id="pauseBatch" class="btn btn-warning hidden">
+                        <span>⏸️</span>
+                        Pause
+                    </button>
+                    <button id="resumeBatch" class="btn btn-success hidden">
+                        <span>▶️</span>
+                        Resume
+                    </button>
+                    <button id="cancelBatch" class="btn btn-danger hidden">
+                        <span>🛑</span>
+                        Cancel
+                    </button>
+                </div>
+
+                <div class="performance-stats">
+                    <div class="stat-item">
+                        <div id="extracting" class="stat-value">0</div>
+                        <div class="stat-label">Extracting</div>
+                    </div>
+                    <div class="stat-item">
+                        <div id="scoring" class="stat-value">0</div>
+                        <div class="stat-label">Scoring</div>
+                    </div>
+                    <div class="stat-item">
+                        <div id="memoryUsage" class="stat-value">0MB</div>
+                        <div class="stat-label">Memory Usage</div>
+                    </div>
+                    <div class="stat-item">
+                        <div id="avgProcessingTime" class="stat-value">0s</div>
+                        <div class="stat-label">Avg Time/File</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Status Log Section -->
+            <div class="section">
+                <h2 class="section-title">
+                    <span>📊</span>
+                    System Status
+                </h2>
+                <div id="statusLog" class="status-log">
+                    <div class="log-entry info">
+                        System ready - configure job settings and upload resumes to begin...
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results Section -->
+            <div id="resultsSection" class="results-section">
+                <h3>🎉 Batch Processing Complete!</h3>
+                <p>All resumes have been processed through the extraction and scoring pipeline.</p>
+                <div class="results-buttons">
+                    <button id="downloadExtractions" class="btn">
+                        <span>📄</span>
+                        Download Extractions
+                    </button>
+                    <button id="downloadScores" class="btn btn-success">
+                        <span>🎯</span>
+                        Download Scores
+                    </button>
+                    <button id="downloadReport" class="btn">
+                        <span>📊</span>
+                        Download Report
+                    </button>
+                </div>
+            </div>
         </div>
-
-        <!-- Pipeline Processing Section -->
-        <div id="pipelineSection" class="pipeline-section">
-          <div class="pipeline-controls">
-            <button id="pauseProcessing" class="btn btn-warning">
-              <span>⏸️</span>
-              Pause
-            </button>
-            <button id="resumeProcessing" class="btn btn-success hidden">
-              <span>▶️</span>
-              Resume
-            </button>
-            <button id="stopProcessing" class="btn btn-danger">
-              <span>⏹️</span>
-              Stop
-            </button>
-          </div>
-
-          <div class="timer-display">
-            <div class="timer-card">
-              <div id="elapsedTime" class="timer-value">00:00:00</div>
-              <div class="timer-label">Elapsed Time</div>
-            </div>
-            <div class="timer-card">
-              <div id="currentFile" class="timer-value">-</div>
-              <div class="timer-label">Current File</div>
-            </div>
-            <div class="timer-card">
-              <div id="throughput" class="timer-value">0</div>
-              <div class="timer-label">Files/Min</div>
-            </div>
-            <div class="timer-card">
-              <div id="estimatedCompletion" class="timer-value">-</div>
-              <div class="timer-label">ETA</div>
-            </div>
-          </div>
-
-          <div class="pipeline-flow">
-            <div class="pipeline-stage">
-              <div class="stage-title">📋 Queue</div>
-              <div id="queueStage" class="stage-queue">
-                <!-- Files waiting to be processed -->
-              </div>
-            </div>
-            <div class="pipeline-stage">
-              <div class="stage-title">🔍 Extraction</div>
-              <div id="extractionStage" class="stage-queue">
-                <!-- Files being extracted -->
-              </div>
-            </div>
-            <div class="pipeline-stage">
-              <div class="stage-title">🤖 AI Scoring</div>
-              <div id="scoringStage" class="stage-queue">
-                <!-- Files being scored -->
-              </div>
-            </div>
-            <div class="pipeline-stage">
-              <div class="stage-title">✅ Completed</div>
-              <div id="completedStage" class="stage-queue">
-                <!-- Completed files -->
-              </div>
-            </div>
-          </div>
-
-          <div class="progress-section">
-            <div class="progress-group">
-              <div class="progress-title">Overall Progress</div>
-              <div class="progress-bar">
-                <div
-                  id="overallProgress"
-                  class="progress-fill"
-                  style="width: 0%"
-                ></div>
-              </div>
-              <div id="overallCounter">0 / 0 completed</div>
-            </div>
-
-            <div class="progress-group">
-              <div class="progress-title">Success Rate</div>
-              <div class="progress-bar">
-                <div
-                  id="successProgress"
-                  class="progress-fill scoring"
-                  style="width: 0%"
-                ></div>
-              </div>
-              <div id="successCounter">0 / 0 successful</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Status Log Section -->
-        <div class="section">
-          <h2 class="section-title">
-            <span>📊</span>
-            Processing Status
-          </h2>
-          <div id="statusLog" class="status-log">
-            <div class="log-entry info">
-              System ready - configure settings and upload resumes to begin...
-            </div>
-          </div>
-        </div>
-
-        <!-- Results Section -->
-        <div id="resultsSection" class="results-section">
-          <h3>🎉 Pipeline Processing Complete!</h3>
-          <p>
-            All resumes have been processed through the extraction and scoring
-            pipeline.
-          </p>
-          <div class="results-buttons">
-            <button id="downloadExtracted" class="btn">
-              <span>📄</span>
-              Download Extracted JSON
-            </button>
-            <button id="downloadScores" class="btn btn-success">
-              <span>🎯</span>
-              Download AI Scores JSON
-            </button>
-            <button id="downloadReport" class="btn">
-              <span>📊</span>
-              Download Processing Report
-            </button>
-          </div>
-        </div>
-      </div>
     </div>
 
     <script>
-      // Enhanced Pipeline State Management
-      class PipelineProcessor {
-        constructor() {
-          this.state = {
-            status: "idle", // idle, running, paused, stopping, stopped, completed
-            files: [],
-            queue: [],
-            extraction: null,
-            scoring: null,
-            completed: [],
-            failed: [],
-            startTime: null,
-            pausedTime: null,
-            totalPausedDuration: 0,
-            currentFileIndex: 0,
-            config: null,
-          };
-
-          this.timerInterval = null;
-          this.progressInterval = null;
-          this.pipelineId = null;
-          this.initializeEventListeners();
-          this.updateUI();
-        }
-
-        initializeEventListeners() {
-          // File handling
-          document
-            .getElementById("fileUpload")
-            .addEventListener("click", () =>
-              document.getElementById("resumeFiles").click()
-            );
-          document
-            .getElementById("fileUpload")
-            .addEventListener("dragover", this.handleDragOver.bind(this));
-          document
-            .getElementById("fileUpload")
-            .addEventListener("drop", this.handleDrop.bind(this));
-          document
-            .getElementById("resumeFiles")
-            .addEventListener("change", this.handleFileSelect.bind(this));
-
-          // Form validation
-          document
-            .getElementById("jobDescription")
-            .addEventListener("input", this.validateForm.bind(this));
-          document
-            .getElementById("evaluationRubric")
-            .addEventListener("input", this.validateForm.bind(this));
-
-          // Pipeline controls - updated
-          document
-            .getElementById("startProcessing")
-            .addEventListener("click", this.startPipeline.bind(this));
-          document
-            .getElementById("pauseProcessing")
-            .addEventListener("click", this.pausePipeline.bind(this));
-          document
-            .getElementById("resumeProcessing")
-            .addEventListener("click", this.resumePipeline.bind(this));
-          document
-            .getElementById("stopProcessing")
-            .addEventListener("click", this.stopPipeline.bind(this));
-
-          // Download buttons
-          document
-            .getElementById("downloadExtracted")
-            .addEventListener("click", this.downloadExtracted.bind(this));
-          document
-            .getElementById("downloadScores")
-            .addEventListener("click", this.downloadScores.bind(this));
-          document
-            .getElementById("downloadReport")
-            .addEventListener("click", this.downloadReport.bind(this));
-        }
-
-        handleDragOver(e) {
-          e.preventDefault();
-          document.getElementById("fileUpload").classList.add("dragover");
-        }
-
-        handleDrop(e) {
-          e.preventDefault();
-          document.getElementById("fileUpload").classList.remove("dragover");
-          const files = Array.from(e.dataTransfer.files).filter(
-            (file) => file.type === "application/pdf"
-          );
-          this.updateFiles(files);
-        }
-
-        handleFileSelect(e) {
-          const files = Array.from(e.target.files);
-          this.updateFiles(files);
-        }
-
-        updateFiles(files) {
-          this.state.files = files;
-          this.displayFileList();
-          this.validateForm();
-        }
-
-        displayFileList() {
-          const fileList = document.getElementById("fileList");
-
-          if (this.state.files.length === 0) {
-            fileList.classList.add("hidden");
-            return;
-          }
-
-          fileList.classList.remove("hidden");
-          fileList.innerHTML = this.state.files
-            .map(
-              (file) => `
-                    <div class="file-item">
-                        <span class="file-name">${file.name}</span>
-                        <span class="file-size">${this.formatFileSize(
-                          file.size
-                        )}</span>
-                    </div>
-                `
-            )
-            .join("");
-        }
-
-        validateForm() {
-          const hasFiles = this.state.files.length > 0;
-          const hasJobDesc =
-            document.getElementById("jobDescription").value.trim().length > 0;
-          const hasRubric =
-            document.getElementById("evaluationRubric").value.trim().length > 0;
-          const isIdle = this.state.status === "idle";
-
-          document.getElementById("startProcessing").disabled =
-            !hasFiles || !hasJobDesc || !hasRubric || !isIdle;
-        }
-
-        // Updated startPipeline to use new API
-        async startPipeline() {
-          if (this.state.status !== "idle") return;
-
-          this.state.status = "running";
-          this.state.startTime = Date.now();
-          this.state.totalPausedDuration = 0;
-          this.state.currentFileIndex = 0;
-          this.state.queue = [...this.state.files];
-          this.state.extraction = null;
-          this.state.scoring = null;
-          this.state.completed = [];
-          this.state.failed = [];
-
-          // Show pipeline section and start timer
-          document.getElementById("pipelineSection").style.display = "block";
-          this.startTimer();
-          this.updateUI();
-
-          try {
-            this.addLog("🚀 Starting pipeline processing...", "info");
-
-            // Upload configuration first
-            await this.uploadConfiguration();
-
-            // Create and start the pipeline
-            await this.createAndStartPipeline();
-
-            this.addLog(
-              `📋 Pipeline processing started with ${this.state.files.length} files`,
-              "success"
-            );
-          } catch (error) {
-            this.addLog(
-              `❌ Failed to start pipeline: ${error.message}`,
-              "error"
-            );
-            this.state.status = "idle";
-            this.stopTimer();
-            this.updateUI();
-          }
-        }
-
-        async uploadConfiguration() {
-          const jobDescription = document
-            .getElementById("jobDescription")
-            .value.trim();
-          const evaluationRubric = document
-            .getElementById("evaluationRubric")
-            .value.trim();
-
-          const response = await fetch(
-            "http://localhost:3000/api/upload-config",
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ jobDescription, evaluationRubric }),
+        class BulkResumeProcessor {
+            constructor() {
+                this.currentBatchId = null;
+                this.files = [];
+                this.progressInterval = null;
+                this.startTime = null;
+                
+                this.initializeEventListeners();
+                this.addLog('System initialized - ready for bulk processing', 'info');
             }
-          );
 
-          if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || "Failed to upload configuration");
-          }
+            initializeEventListeners() {
+                // Configuration
+                document.getElementById('uploadConfig').addEventListener('click', this.uploadConfiguration.bind(this));
 
-          this.addLog("📝 Configuration uploaded successfully", "success");
-        }
+                // File handling
+                document.getElementById('fileUpload').addEventListener('click', () => 
+                    document.getElementById('resumeFiles').click()
+                );
+                document.getElementById('fileUpload').addEventListener('dragover', this.handleDragOver.bind(this));
+                document.getElementById('fileUpload').addEventListener('drop', this.handleDrop.bind(this));
+                document.getElementById('resumeFiles').addEventListener('change', this.handleFileSelect.bind(this));
 
-        async createAndStartPipeline() {
-          // Step 1: Create pipeline
-          const formData = new FormData();
-          this.state.files.forEach((file) => {
-            formData.append("resumes", file);
-          });
+                // Batch operations
+                document.getElementById('createBatch').addEventListener('click', this.createBatch.bind(this));
+                document.getElementById('startBatch').addEventListener('click', this.startBatch.bind(this));
+                document.getElementById('pauseBatch').addEventListener('click', this.pauseBatch.bind(this));
+                document.getElementById('resumeBatch').addEventListener('click', this.resumeBatch.bind(this));
+                document.getElementById('cancelBatch').addEventListener('click', this.cancelBatch.bind(this));
 
-          const createResponse = await fetch(
-            "http://localhost:3000/api/pipeline/create",
-            {
-              method: "POST",
-              body: formData,
+                // Downloads
+                document.getElementById('downloadExtractions').addEventListener('click', () => this.downloadResults('extractions'));
+                document.getElementById('downloadScores').addEventListener('click', () => this.downloadResults('scores'));
+                document.getElementById('downloadReport').addEventListener('click', () => this.downloadResults('report'));
             }
-          );
 
-          if (!createResponse.ok) {
-            const error = await createResponse.json();
-            throw new Error(error.error || "Failed to create pipeline");
-          }
+            async uploadConfiguration() {
+                const jobDescription = document.getElementById('jobDescription').value.trim();
+                const evaluationRubric = document.getElementById('evaluationRubric').value.trim();
 
-          const createResult = await createResponse.json();
-          this.pipelineId = createResult.pipelineId;
-          this.addLog(`📋 Pipeline created: ${this.pipelineId}`, "success");
-
-          // Step 2: Start pipeline
-          const startResponse = await fetch(
-            `http://localhost:3000/api/pipeline/${this.pipelineId}/start`,
-            {
-              method: "POST",
-            }
-          );
-
-          if (!startResponse.ok) {
-            const error = await startResponse.json();
-            throw new Error(error.error || "Failed to start pipeline");
-          }
-
-          this.addLog("🚀 Pipeline started successfully", "success");
-
-          // Step 3: Start monitoring progress
-          this.startProgressMonitoring();
-        }
-
-        startProgressMonitoring() {
-          // Poll for progress updates every 2 seconds
-          this.progressInterval = setInterval(async () => {
-            try {
-              await this.updateProgressFromServer();
-            } catch (error) {
-              console.error("Error updating progress:", error);
-            }
-          }, 2000);
-        }
-
-        async updateProgressFromServer() {
-          if (!this.pipelineId) return;
-
-          const response = await fetch(
-            `http://localhost:3000/api/pipeline/${this.pipelineId}/progress`
-          );
-
-          if (!response.ok) {
-            console.error("Failed to fetch progress");
-            return;
-          }
-
-          const progress = await response.json();
-
-          // Update state based on server response
-          this.updateStateFromProgress(progress);
-
-          // Update UI
-          this.updatePipelineDisplay();
-          this.updateProgress();
-
-          // Update timer display
-          this.updateTimerFromProgress(progress);
-
-          // Check if completed
-          if (progress.status === "completed") {
-            this.completePipeline();
-          }
-        }
-
-        updateStateFromProgress(progress) {
-          // Update current file display
-          if (progress.currentFile) {
-            document.getElementById("currentFile").textContent =
-              this.truncateFilename(progress.currentFile);
-          } else {
-            document.getElementById("currentFile").textContent = "-";
-          }
-
-          // Update stats
-          this.state.completed = progress.files.filter(
-            (f) => f.status === "completed"
-          );
-          this.state.failed = progress.files.filter(
-            (f) => f.status === "failed"
-          );
-          this.state.queue = progress.files.filter(
-            (f) => f.status === "queued"
-          );
-
-          // Find current processing files
-          this.state.extraction =
-            progress.files.find((f) => f.status === "extracting") || null;
-          this.state.scoring =
-            progress.files.find((f) => f.status === "scoring") || null;
-
-          // Update pipeline display based on server state
-          this.displayServerProgress(progress);
-        }
-
-        displayServerProgress(progress) {
-          // Update queue display
-          const queueStage = document.getElementById("queueStage");
-          const queuedFiles = progress.files.filter(
-            (f) => f.status === "queued"
-          );
-          queueStage.innerHTML = queuedFiles
-            .map(
-              (file) =>
-                `<div class="queue-item">${this.truncateFilename(
-                  file.filename
-                )}</div>`
-            )
-            .join("");
-          queueStage.classList.toggle("active", queuedFiles.length > 0);
-
-          // Update extraction display
-          const extractionStage = document.getElementById("extractionStage");
-          const extractingFiles = progress.files.filter(
-            (f) => f.status === "extracting"
-          );
-          if (extractingFiles.length > 0) {
-            extractionStage.innerHTML = extractingFiles
-              .map(
-                (file) =>
-                  `<div class="queue-item processing">${this.truncateFilename(
-                    file.filename
-                  )}</div>`
-              )
-              .join("");
-            extractionStage.classList.add("active");
-          } else {
-            extractionStage.innerHTML = "";
-            extractionStage.classList.remove("active");
-          }
-
-          // Update scoring display
-          const scoringStage = document.getElementById("scoringStage");
-          const scoringFiles = progress.files.filter(
-            (f) => f.status === "scoring"
-          );
-          if (scoringFiles.length > 0) {
-            scoringStage.innerHTML = scoringFiles
-              .map(
-                (file) =>
-                  `<div class="queue-item processing">${this.truncateFilename(
-                    file.filename
-                  )}</div>`
-              )
-              .join("");
-            scoringStage.classList.add("active");
-          } else {
-            scoringStage.innerHTML = "";
-            scoringStage.classList.remove("active");
-          }
-
-          // Update completed display
-          const completedStage = document.getElementById("completedStage");
-          const completedFiles = progress.files.filter(
-            (f) => f.status === "completed"
-          );
-          const failedFiles = progress.files.filter(
-            (f) => f.status === "failed"
-          );
-          const allCompleted = [...completedFiles, ...failedFiles];
-
-          completedStage.innerHTML = allCompleted
-            .slice(-3)
-            .map((file) => {
-              const statusClass =
-                file.status === "completed" ? "completed" : "error";
-              return `<div class="queue-item ${statusClass}">${this.truncateFilename(
-                file.filename
-              )}</div>`;
-            })
-            .join("");
-
-          if (allCompleted.length > 3) {
-            completedStage.innerHTML += `<div class="queue-item">+${
-              allCompleted.length - 3
-            } more...</div>`;
-          }
-        }
-
-        updateTimerFromProgress(progress) {
-          if (progress.timing) {
-            // Update elapsed time
-            const elapsed =
-              Date.now() - new Date(progress.timing.startTime).getTime();
-            document.getElementById("elapsedTime").textContent =
-              this.formatTime(elapsed);
-
-            // Update throughput
-            document.getElementById("throughput").textContent =
-              progress.timing.throughputPerMinute || 0;
-
-            // Update ETA
-            if (progress.timing.estimatedCompletion) {
-              const eta =
-                new Date(progress.timing.estimatedCompletion).getTime() -
-                Date.now();
-              document.getElementById("estimatedCompletion").textContent =
-                eta > 0 ? this.formatTime(eta) : "Complete";
-            } else {
-              document.getElementById("estimatedCompletion").textContent = "-";
-            }
-          }
-        }
-
-        async pausePipeline() {
-          if (!this.pipelineId) return;
-
-          try {
-            const response = await fetch(
-              `http://localhost:3000/api/pipeline/${this.pipelineId}/pause`,
-              {
-                method: "POST",
-              }
-            );
-
-            if (response.ok) {
-              this.state.status = "paused";
-              this.addLog("⏸️ Pipeline paused", "warning");
-              this.updateUI();
-            }
-          } catch (error) {
-            this.addLog(
-              `❌ Failed to pause pipeline: ${error.message}`,
-              "error"
-            );
-          }
-        }
-
-        async resumePipeline() {
-          if (!this.pipelineId) return;
-
-          try {
-            const response = await fetch(
-              `http://localhost:3000/api/pipeline/${this.pipelineId}/resume`,
-              {
-                method: "POST",
-              }
-            );
-
-            if (response.ok) {
-              this.state.status = "running";
-              this.addLog("▶️ Pipeline resumed", "info");
-              this.updateUI();
-            }
-          } catch (error) {
-            this.addLog(
-              `❌ Failed to resume pipeline: ${error.message}`,
-              "error"
-            );
-          }
-        }
-
-        async stopPipeline() {
-          if (!this.pipelineId) return;
-
-          try {
-            const response = await fetch(
-              `http://localhost:3000/api/pipeline/${this.pipelineId}/stop`,
-              {
-                method: "POST",
-              }
-            );
-
-            if (response.ok) {
-              this.state.status = "stopped";
-              this.stopTimer();
-              this.stopProgressMonitoring();
-              this.addLog("⏹️ Pipeline stopped", "warning");
-              this.updateUI();
-            }
-          } catch (error) {
-            this.addLog(
-              `❌ Failed to stop pipeline: ${error.message}`,
-              "error"
-            );
-          }
-        }
-
-        stopProgressMonitoring() {
-          if (this.progressInterval) {
-            clearInterval(this.progressInterval);
-            this.progressInterval = null;
-          }
-        }
-
-        updatePipelineDisplay() {
-          // Update queue display
-          const queueStage = document.getElementById("queueStage");
-          queueStage.innerHTML = this.state.queue
-            .map(
-              (file) =>
-                `<div class="queue-item">${this.truncateFilename(
-                  file.name
-                )}</div>`
-            )
-            .join("");
-          queueStage.classList.toggle("active", this.state.queue.length > 0);
-
-          // Update extraction display
-          const extractionStage = document.getElementById("extractionStage");
-          if (this.state.extraction) {
-            const statusClass =
-              this.state.extraction.status === "processing"
-                ? "processing"
-                : this.state.extraction.status === "completed"
-                ? "completed"
-                : "error";
-            extractionStage.innerHTML = `<div class="queue-item ${statusClass}">${this.truncateFilename(
-              this.state.extraction.file.name
-            )}</div>`;
-            extractionStage.classList.add("active");
-          } else {
-            extractionStage.innerHTML = "";
-            extractionStage.classList.remove("active");
-          }
-
-          // Update scoring display
-          const scoringStage = document.getElementById("scoringStage");
-          if (this.state.scoring) {
-            const statusClass =
-              this.state.scoring.status === "processing"
-                ? "processing"
-                : this.state.scoring.status === "completed"
-                ? "completed"
-                : "error";
-            scoringStage.innerHTML = `<div class="queue-item ${statusClass}">${this.truncateFilename(
-              this.state.scoring.file.name
-            )}</div>`;
-            scoringStage.classList.add("active");
-          } else {
-            scoringStage.innerHTML = "";
-            scoringStage.classList.remove("active");
-          }
-
-          // Update completed display
-          const completedStage = document.getElementById("completedStage");
-          const allCompleted = [...this.state.completed, ...this.state.failed];
-          completedStage.innerHTML = allCompleted
-            .slice(-3)
-            .map((item) => {
-              const statusClass = this.state.completed.includes(item)
-                ? "completed"
-                : "error";
-              return `<div class="queue-item ${statusClass}">${this.truncateFilename(
-                item.file.name
-              )}</div>`;
-            })
-            .join("");
-
-          if (allCompleted.length > 3) {
-            completedStage.innerHTML += `<div class="queue-item">+${
-              allCompleted.length - 3
-            } more...</div>`;
-          }
-        }
-
-        updateProgress() {
-          const totalFiles = this.state.files.length;
-          const completedFiles =
-            this.state.completed.length + this.state.failed.length;
-          const successfulFiles = this.state.completed.length;
-
-          // Overall progress
-          const overallPercent =
-            totalFiles > 0 ? (completedFiles / totalFiles) * 100 : 0;
-          document.getElementById("overallProgress").style.width =
-            overallPercent + "%";
-          document.getElementById(
-            "overallCounter"
-          ).textContent = `${completedFiles} / ${totalFiles} completed`;
-
-          // Success rate
-          const successPercent =
-            completedFiles > 0 ? (successfulFiles / completedFiles) * 100 : 0;
-          document.getElementById("successProgress").style.width =
-            successPercent + "%";
-          document.getElementById(
-            "successCounter"
-          ).textContent = `${successfulFiles} / ${completedFiles} successful`;
-        }
-
-        startTimer() {
-          this.timerInterval = setInterval(() => {
-            if (this.state.status === "running" && this.state.startTime) {
-              const currentTime = Date.now();
-              const pausedDuration = this.state.pausedTime
-                ? currentTime - this.state.pausedTime
-                : 0;
-              const elapsed =
-                currentTime -
-                this.state.startTime -
-                this.state.totalPausedDuration -
-                pausedDuration;
-
-              document.getElementById("elapsedTime").textContent =
-                this.formatTime(elapsed);
-
-              // Calculate throughput
-              const completedCount =
-                this.state.completed.length + this.state.failed.length;
-              if (completedCount > 0 && elapsed > 0) {
-                const throughput = Math.round(
-                  (completedCount / elapsed) * 60000
-                ); // files per minute
-                document.getElementById("throughput").textContent = throughput;
-
-                // Calculate ETA
-                const remainingFiles = this.state.files.length - completedCount;
-                if (remainingFiles > 0 && throughput > 0) {
-                  const etaMs = (remainingFiles / throughput) * 60000;
-                  document.getElementById("estimatedCompletion").textContent =
-                    this.formatTime(etaMs);
-                } else {
-                  document.getElementById("estimatedCompletion").textContent =
-                    "-";
+                if (jobDescription.length < 20) {
+                    this.addLog('Job description must be at least 20 characters', 'error');
+                    return;
                 }
-              }
-            }
-          }, 1000);
-        }
 
-        stopTimer() {
-          if (this.timerInterval) {
-            clearInterval(this.timerInterval);
-            this.timerInterval = null;
-          }
-        }
+                if (evaluationRubric.length < 20) {
+                    this.addLog('Evaluation rubric must be at least 20 characters', 'error');
+                    return;
+                }
 
-        updateUI() {
-          const startBtn = document.getElementById("startProcessing");
-          const pauseBtn = document.getElementById("pauseProcessing");
-          const resumeBtn = document.getElementById("resumeProcessing");
-          const stopBtn = document.getElementById("stopProcessing");
+                try {
+                    const response = await fetch('/api/config', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ jobDescription, evaluationRubric })
+                    });
 
-          // Update button states
-          startBtn.disabled = this.state.status !== "idle";
+                    const result = await response.json();
 
-          if (this.state.status === "running") {
-            pauseBtn.classList.remove("hidden");
-            resumeBtn.classList.add("hidden");
-            stopBtn.classList.remove("hidden");
-          } else if (this.state.status === "paused") {
-            pauseBtn.classList.add("hidden");
-            resumeBtn.classList.remove("hidden");
-            stopBtn.classList.remove("hidden");
-          } else {
-            pauseBtn.classList.add("hidden");
-            resumeBtn.classList.add("hidden");
-            stopBtn.classList.add("hidden");
-          }
-
-          this.validateForm();
-        }
-
-        async extractResume(file) {
-          // This method is now handled by the pipeline service
-          // Kept for backward compatibility if needed
-          const formData = new FormData();
-          formData.append("resume", file);
-
-          const response = await fetch("http://localhost:3000/api/extract", {
-            method: "POST",
-            body: formData,
-          });
-
-          if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || "Extraction failed");
-          }
-
-          return await response.json();
-        }
-
-        async scoreResume(filename) {
-          // This method is now handled by the pipeline service
-          // Kept for backward compatibility if needed
-          const response = await fetch(
-            "http://localhost:3000/api/score-resume",
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ filename }),
-            }
-          );
-
-          if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || "Scoring failed");
-          }
-
-          return await response.json();
-        }
-
-        async downloadExtracted() {
-          if (!this.pipelineId) {
-            this.addLog("❌ No pipeline available for download", "error");
-            return;
-          }
-
-          try {
-            this.addLog("📄 Preparing extracted data download...", "info");
-
-            const response = await fetch(
-              `http://localhost:3000/api/pipeline/${this.pipelineId}/download/json`
-            );
-
-            if (!response.ok) {
-              throw new Error("Download failed");
+                    if (result.success) {
+                        this.addLog('Configuration saved successfully', 'success');
+                        this.validateForm();
+                    } else {
+                        this.addLog(`Configuration error: ${result.error}`, 'error');
+                    }
+                } catch (error) {
+                    this.addLog(`Configuration upload failed: ${error.message}`, 'error');
+                }
             }
 
-            // Create download link
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            const link = document.createElement("a");
-            link.href = url;
-            link.download = `pipeline_${this.pipelineId}_extracted.zip`;
-            link.click();
-            window.URL.revokeObjectURL(url);
-
-            this.addLog("📄 Extracted data downloaded successfully", "success");
-          } catch (error) {
-            this.addLog(`❌ Download failed: ${error.message}`, "error");
-          }
-        }
-
-        async downloadScores() {
-          if (!this.pipelineId) {
-            this.addLog("❌ No pipeline available for download", "error");
-            return;
-          }
-
-          try {
-            this.addLog("🎯 Preparing AI scores download...", "info");
-
-            const response = await fetch(
-              `http://localhost:3000/api/pipeline/${this.pipelineId}/download/scores`
-            );
-
-            if (!response.ok) {
-              throw new Error("Download failed");
+            handleDragOver(e) {
+                e.preventDefault();
+                document.getElementById('fileUpload').classList.add('dragover');
             }
 
-            // Create download link
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            const link = document.createElement("a");
-            link.href = url;
-            link.download = `pipeline_${this.pipelineId}_scores.zip`;
-            link.click();
-            window.URL.revokeObjectURL(url);
-
-            this.addLog("🎯 AI scores downloaded successfully", "success");
-          } catch (error) {
-            this.addLog(`❌ Download failed: ${error.message}`, "error");
-          }
-        }
-
-        async downloadReport() {
-          if (!this.pipelineId) {
-            this.addLog("❌ No pipeline available for download", "error");
-            return;
-          }
-
-          try {
-            this.addLog("📊 Preparing processing report download...", "info");
-
-            const response = await fetch(
-              `http://localhost:3000/api/pipeline/${this.pipelineId}/download/report`
-            );
-
-            if (!response.ok) {
-              throw new Error("Report download failed");
+            handleDrop(e) {
+                e.preventDefault();
+                document.getElementById('fileUpload').classList.remove('dragover');
+                const files = Array.from(e.dataTransfer.files).filter(
+                    file => file.type === 'application/pdf'
+                );
+                this.updateFiles(files);
             }
 
-            // Create download link
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            const link = document.createElement("a");
-            link.href = url;
-            link.download = `pipeline_${this.pipelineId}_report.json`;
-            link.click();
-            window.URL.revokeObjectURL(url);
+            handleFileSelect(e) {
+                const files = Array.from(e.target.files);
+                this.updateFiles(files);
+            }
 
-            this.addLog(
-              "📊 Processing report downloaded successfully",
-              "success"
-            );
-          } catch (error) {
-            this.addLog(`❌ Report download failed: ${error.message}`, "error");
-          }
+            updateFiles(files) {
+                this.files = files;
+                this.displayFileList();
+                this.validateForm();
+            }
+
+            displayFileList() {
+                const fileList = document.getElementById('fileList');
+
+                if (this.files.length === 0) {
+                    fileList.classList.add('hidden');
+                    return;
+                }
+
+                fileList.classList.remove('hidden');
+                fileList.innerHTML = this.files
+                    .map(file => `
+                        <div class="file-item">
+                            <span class="file-name">${file.name}</span>
+                            <span class="file-size">${this.formatFileSize(file.size)}</span>
+                        </div>
+                    `).join('');
+            }
+
+            validateForm() {
+                const hasFiles = this.files.length > 0;
+                const hasConfig = document.getElementById('jobDescription').value.trim().length > 0 &&
+                                 document.getElementById('evaluationRubric').value.trim().length > 0;
+
+                document.getElementById('createBatch').disabled = !hasFiles || !hasConfig;
+            }
+
+            async createBatch() {
+                if (this.files.length === 0) {
+                    this.addLog('No files selected', 'error');
+                    return;
+                }
+
+                try {
+                    const formData = new FormData();
+                    this.files.forEach(file => {
+                        formData.append('resumes', file);
+                    });
+
+                    this.addLog(`Creating batch with ${this.files.length} files...`, 'info');
+
+                    const response = await fetch('/api/batch/create', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        this.currentBatchId = result.data.batchId;
+                        this.addLog(`Batch created: ${this.currentBatchId}`, 'success');
+                        this.showProgressSection();
+                        this.updateMetrics(result.data);
+                    } else {
+                        this.addLog(`Batch creation failed: ${result.error}`, 'error');
+                    }
+                } catch (error) {
+                    this.addLog(`Batch creation error: ${error.message}`, 'error');
+                }
+            }
+
+            async startBatch() {
+                if (!this.currentBatchId) {
+                    this.addLog('No batch created', 'error');
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`/api/batch/${this.currentBatchId}/start`, {
+                        method: 'POST'
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        this.addLog('Batch processing started', 'success');
+                        this.startTime = Date.now();
+                        this.updateControlButtons('running');
+                        this.startProgressPolling();
+                    } else {
+                        this.addLog(`Start failed: ${result.error}`, 'error');
+                    }
+                } catch (error) {
+                    this.addLog(`Start error: ${error.message}`, 'error');
+                }
+            }
+
+            async pauseBatch() {
+                await this.sendBatchCommand('pause', 'paused');
+            }
+
+            async resumeBatch() {
+                await this.sendBatchCommand('resume', 'running');
+            }
+
+            async cancelBatch() {
+                if (confirm('Are you sure you want to cancel this batch?')) {
+                    await this.sendBatchCommand('cancel', 'cancelled');
+                }
+            }
+
+            async sendBatchCommand(command, expectedStatus) {
+                try {
+                    const response = await fetch(`/api/batch/${this.currentBatchId}/${command}`, {
+                        method: 'POST'
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        this.addLog(`Batch ${command}ed`, 'info');
+                        this.updateControlButtons(expectedStatus);
+                        
+                        if (expectedStatus === 'cancelled') {
+                            this.stopProgressPolling();
+                        }
+                    } else {
+                        this.addLog(`${command} failed: ${result.error}`, 'error');
+                    }
+                } catch (error) {
+                    this.addLog(`${command} error: ${error.message}`, 'error');
+                }
+            }
+
+            showProgressSection() {
+                document.getElementById('progressSection').style.display = 'block';
+            }
+
+            updateControlButtons(status) {
+                const buttons = {
+                    start: document.getElementById('startBatch'),
+                    pause: document.getElementById('pauseBatch'),
+                    resume: document.getElementById('resumeBatch'),
+                    cancel: document.getElementById('cancelBatch')
+                };
+
+                // Hide all
+                Object.values(buttons).forEach(btn => btn.classList.add('hidden'));
+
+                // Show appropriate buttons
+                if (status === 'running') {
+                    buttons.pause.classList.remove('hidden');
+                    buttons.cancel.classList.remove('hidden');
+                } else if (status === 'paused') {
+                    buttons.resume.classList.remove('hidden');
+                    buttons.cancel.classList.remove('hidden');
+                } else {
+                    buttons.start.classList.remove('hidden');
+                }
+            }
+
+            startProgressPolling() {
+                this.progressInterval = setInterval(async () => {
+                    await this.updateProgress();
+                }, 2000);
+            }
+
+            stopProgressPolling() {
+                if (this.progressInterval) {
+                    clearInterval(this.progressInterval);
+                    this.progressInterval = null;
+                }
+            }
+
+            async updateProgress() {
+                if (!this.currentBatchId) return;
+
+                try {
+                    const response = await fetch(`/api/batch/${this.currentBatchId}/progress`);
+                    const result = await response.json();
+
+                    if (result.success) {
+                        this.updateProgressDisplay(result.data);
+                        
+                        if (result.data.status === 'completed') {
+                            this.handleBatchCompletion(result.data);
+                        }
+                    }
+                } catch (error) {
+                    console.error('Progress update error:', error);
+                }
+            }
+
+            updateProgressDisplay(data) {
+                const { metrics, status } = data;
+                
+                // Update metrics
+                document.getElementById('totalFiles').textContent = metrics.total;
+                document.getElementById('completedFiles').textContent = metrics.completed;
+                document.getElementById('failedFiles').textContent = metrics.failed;
+                document.getElementById('extracting').textContent = metrics.extracting;
+                document.getElementById('scoring').textContent = metrics.scoring;
+                
+                // Update progress bars
+                const overallPercent = (metrics.completed + metrics.failed) / metrics.total * 100;
+                document.getElementById('overallProgress').style.width = overallPercent + '%';
+                document.getElementById('progressText').textContent = 
+                    `${metrics.completed + metrics.failed} / ${metrics.total} files processed`;
+
+                const successPercent = metrics.completed > 0 ? 
+                    (metrics.completed / (metrics.completed + metrics.failed)) * 100 : 0;
+                document.getElementById('successProgress').style.width = successPercent + '%';
+                document.getElementById('successText').textContent = 
+                    `${metrics.completed} / ${metrics.completed + metrics.failed} successful`;
+
+                // Update timing
+                document.getElementById('throughput').textContent = Math.round(metrics.timing.throughputPerHour);
+                document.getElementById('elapsedTime').textContent = this.formatDuration(metrics.timing.elapsedMs);
+                
+                if (metrics.timing.estimatedCompletionMs) {
+                    const eta = new Date(metrics.timing.estimatedCompletionMs) - new Date();
+                    document.getElementById('estimatedTime').textContent = this.formatDuration(eta);
+                } else {
+                    document.getElementById('estimatedTime').textContent = '--:--:--';
+                }
+
+                // Update performance stats
+                document.getElementById('memoryUsage').textContent = `${metrics.memory.usedMB}MB`;
+                
+                const avgTime = metrics.timing.avgExtractionMs + metrics.timing.avgScoringMs;
+                document.getElementById('avgProcessingTime').textContent = `${Math.round(avgTime / 1000)}s`;
+            }
+
+            handleBatchCompletion(data) {
+                this.stopProgressPolling();
+                this.updateControlButtons('completed');
+                
+                const successRate = (data.metrics.completed / data.metrics.total * 100).toFixed(1);
+                this.addLog(
+                    `🎉 Batch completed! ${data.metrics.completed}/${data.metrics.total} successful (${successRate}%)`,
+                    'success'
+                );
+                
+                document.getElementById('resultsSection').style.display = 'block';
+                document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
+            }
+
+            async downloadResults(type) {
+                if (!this.currentBatchId) {
+                    this.addLog('No batch available for download', 'error');
+                    return;
+                }
+
+                try {
+                    this.addLog(`Downloading ${type}...`, 'info');
+                    
+                    const response = await fetch(`/api/batch/${this.currentBatchId}/download/${type}`);
+                    
+                    if (response.ok) {
+                        const blob = await response.blob();
+                        const url = window.URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.download = `batch-${this.currentBatchId}-${type}.${type === 'report' ? 'json' : 'zip'}`;
+                        link.click();
+                        window.URL.revokeObjectURL(url);
+                        
+                        this.addLog(`${type} downloaded successfully`, 'success');
+                    } else {
+                        const error = await response.json();
+                        this.addLog(`Download failed: ${error.error}`, 'error');
+                    }
+                } catch (error) {
+                    this.addLog(`Download error: ${error.message}`, 'error');
+                }
+            }
+
+            formatFileSize(bytes) {
+                if (bytes === 0) return '0 Bytes';
+                const k = 1024;
+                const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+            }
+
+            formatDuration(ms) {
+                if (ms < 0) return '--:--:--';
+                
+                const totalSeconds = Math.floor(ms / 1000);
+                const hours = Math.floor(totalSeconds / 3600);
+                const minutes = Math.floor((totalSeconds % 3600) / 60);
+                const seconds = totalSeconds % 60;
+
+                return `${hours.toString().padStart(2, '0')}:${minutes
+                    .toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            }
+
+            addLog(message, type = 'info') {
+                const timestamp = new Date().toLocaleTimeString();
+                const logEntry = document.createElement('div');
+                logEntry.className = `log-entry ${type}`;
+                logEntry.textContent = `[${timestamp}] ${message}`;
+
+                const statusLog = document.getElementById('statusLog');
+                statusLog.appendChild(logEntry);
+                statusLog.scrollTop = statusLog.scrollHeight;
+
+                // Keep only last 100 entries
+                const entries = statusLog.querySelectorAll('.log-entry');
+                if (entries.length > 100) {
+                    entries[0].remove();
+                }
+
+                console.log(`[${type.toUpperCase()}] ${message}`);
+            }
+
+            updateMetrics(data) {
+                document.getElementById('totalFiles').textContent = data.totalFiles || 0;
+            }
         }
 
-        completePipeline() {
-          this.state.status = "completed";
-          this.stopTimer();
-          this.stopProgressMonitoring();
-
-          const successCount = this.state.completed.length;
-          const totalTime = this.state.startTime
-            ? Math.round(
-                (Date.now() -
-                  this.state.startTime -
-                  this.state.totalPausedDuration) /
-                  1000
-              )
-            : 0;
-
-          this.addLog(
-            `🎉 Pipeline completed! ${successCount}/${this.state.files.length} files processed successfully in ${totalTime}s`,
-            "success"
-          );
-          document.getElementById("resultsSection").style.display = "block";
-          document
-            .getElementById("resultsSection")
-            .scrollIntoView({ behavior: "smooth" });
-          this.updateUI();
-        }
-
-        addLog(message, type = "info") {
-          const timestamp = new Date().toLocaleTimeString();
-          const logEntry = document.createElement("div");
-          logEntry.className = `log-entry ${type}`;
-          logEntry.textContent = `[${timestamp}] ${message}`;
-
-          const statusLog = document.getElementById("statusLog");
-          statusLog.appendChild(logEntry);
-          statusLog.scrollTop = statusLog.scrollHeight;
-
-          // Keep only last 100 entries
-          const entries = statusLog.querySelectorAll(".log-entry");
-          if (entries.length > 100) {
-            entries[0].remove();
-          }
-        }
-
-        formatTime(ms) {
-          const totalSeconds = Math.floor(ms / 1000);
-          const hours = Math.floor(totalSeconds / 3600);
-          const minutes = Math.floor((totalSeconds % 3600) / 60);
-          const seconds = totalSeconds % 60;
-
-          return `${hours.toString().padStart(2, "0")}:${minutes
-            .toString()
-            .padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
-        }
-
-        formatFileSize(bytes) {
-          if (bytes === 0) return "0 Bytes";
-          const k = 1024;
-          const sizes = ["Bytes", "KB", "MB", "GB"];
-          const i = Math.floor(Math.log(bytes) / Math.log(k));
-          return (
-            parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i]
-          );
-        }
-
-        truncateFilename(filename, maxLength = 15) {
-          if (filename.length <= maxLength) return filename;
-          const ext = filename.split(".").pop();
-          const name = filename.slice(0, filename.lastIndexOf("."));
-          const truncated = name.slice(0, maxLength - ext.length - 4) + "...";
-          return truncated + "." + ext;
-        }
-      }
-
-      // Initialize the pipeline processor
-      const pipeline = new PipelineProcessor();
+        // Initialize the processor
+        const processor = new BulkResumeProcessor();
     </script>
-  </body>
+</body>
 </html>

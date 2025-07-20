@@ -1,107 +1,135 @@
-// src/index.ts - Updated CORS configuration
-import express from "express";
-import enhancedExtractRoutes from "./routes/enhancedExtractRoutes";
-import configRoutes from "./routes/configRoutes";
-import scoreRoutes from "./routes/scoreRoutes";
-import { ensureDirectories } from "./utils/fileUtils";
-import fs from "fs";
-import cors from "cors";
+// src/index.ts
+import express from 'express';
+import cors from 'cors';
+import path from 'path';
+import fs from 'fs';
+import { validateConfig, serverConfig } from './config';
+import routes from './routes';
+import { errorMiddleware } from './middleware/errorMiddleware';
+
+// Validate configuration
+validateConfig();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
 
-// Updated CORS Middleware - ADD YOUR FRONTEND ORIGINS
+// CORS configuration
 app.use(cors({
-  origin: [
-    "http://localhost:3000", 
-    "http://127.0.0.1:3000",
-    "http://localhost:5500",     // Add this
-    "http://127.0.0.1:5500",     // Add this
-    "http://localhost:8080",     // Common dev server port
-    "http://127.0.0.1:8080"      // Common dev server port
-  ],
+  origin: serverConfig.corsOrigins,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// Rest of your code remains the same...
-app.use(express.json({ limit: '10mb' }));
-app.use(express.static("public"));
+// Body parsing middleware
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Ensure required directories exist
-ensureDirectories();
+// Create required directories
+const requiredDirs = [
+  serverConfig.uploadDir,
+  serverConfig.outputDir,
+  path.join(serverConfig.outputDir, 'extractions'),
+  path.join(serverConfig.outputDir, 'scores'),
+  path.join(serverConfig.outputDir, 'reports')
+];
 
-// Create additional directories for enhanced pipeline
-const additionalDirs = ["./uploads", "./reports", "./temp"];
-additionalDirs.forEach(dir => {
+requiredDirs.forEach(dir => {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
+    console.log(`📁 Created directory: ${dir}`);
   }
 });
 
-// Routes
-app.use("/api", enhancedExtractRoutes);
-app.use("/api", configRoutes);
-app.use("/api", scoreRoutes);
+// Serve static files
+app.use(express.static('public'));
 
-// Health check endpoint
-app.get("/api/health", (req, res) => {
-  const healthStatus = {
-    status: "healthy",
+// API routes
+app.use('/api', routes);
+
+// Health check endpoint (separate from main routes for performance)
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'healthy',
     timestamp: new Date().toISOString(),
-    services: {
-      extraction: "available",
-      scoring: "available",
-      configuration: "available",
-      pipeline: "available"
-    },
-    directories: {
-      uploads: fs.existsSync("./uploads"),
-      json: fs.existsSync("./json"),
-      scores: fs.existsSync("./scores"),
-      reports: fs.existsSync("./reports")
-    },
-    environment: {
-      nodeEnv: process.env.NODE_ENV || "development",
-      port: PORT,
-      llamaApiConfigured: !!process.env.LLAMA_CLOUD_API_KEY,
-      openaiApiConfigured: !!process.env.OPENAI_API_KEY
-    }
-  };
-
-  res.status(200).json(healthStatus);
+    version: '2.0.0',
+    uptime: process.uptime()
+  });
 });
 
 // Error handling middleware
-app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  console.error('Server error:', err);
-  
-  if (err.code === 'LIMIT_FILE_SIZE') {
-    return res.status(400).json({ 
-      error: 'File too large. Maximum size is 10MB per file.' 
-    });
-  }
-  
-  if (err.code === 'LIMIT_FILE_COUNT') {
-    return res.status(400).json({ 
-      error: 'Too many files. Maximum 1000 files per upload.' 
-    });
-  }
+app.use(errorMiddleware);
 
-  res.status(500).json({ 
-    error: 'Internal server error',
-    message: err.message,
+// 404 handler
+app.use('*', (req, res) => {
+  res.status(404).json({
+    success: false,
+    error: 'Endpoint not found',
     timestamp: new Date().toISOString()
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 Enhanced Resume Processing Server running on http://localhost:${PORT}`);
-  console.log(`📁 JSON outputs: ./json/`);
-  console.log(`📊 Score outputs: ./scores/`);
-  console.log(`📋 Reports: ./reports/`);
-  console.log(`🔧 Pipeline processing: Enhanced mode`);
-  console.log(`💡 Dashboard: http://localhost:${PORT}/api/dashboard`);
-  console.log(`🌐 CORS enabled for multiple origins including 127.0.0.1:5500`);
+// Graceful shutdown handling
+const gracefulShutdown = () => {
+  console.log('\n📴 Received shutdown signal, cleaning up...');
+  
+  // Clean up temporary files
+  try {
+    if (fs.existsSync(serverConfig.uploadDir)) {
+      const files = fs.readdirSync(serverConfig.uploadDir);
+      files.forEach(file => {
+        try {
+          fs.unlinkSync(path.join(serverConfig.uploadDir, file));
+        } catch (error) {
+          console.warn(`⚠️ Could not cleanup ${file}:`, error);
+        }
+      });
+      console.log('🧹 Cleaned up temporary files');
+    }
+  } catch (error) {
+    console.warn('⚠️ Error during cleanup:', error);
+  }
+
+  process.exit(0);
+};
+
+process.on('SIGTERM', gracefulShutdown);
+process.on('SIGINT', gracefulShutdown);
+
+// Start server
+const server = app.listen(serverConfig.port, () => {
+  console.log('\n🚀 BULK RESUME PROCESSOR v2.0.0 - PRODUCTION READY');
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log(`📡 Server running on: http://localhost:${serverConfig.port}`);
+  console.log(`📊 Dashboard: http://localhost:${serverConfig.port}`);
+  console.log(`🔧 API endpoints: http://localhost:${serverConfig.port}/api`);
+  console.log(`💾 Output directory: ${path.resolve(serverConfig.outputDir)}`);
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('⚡ PERFORMANCE OPTIMIZED FOR 500-1000+ RESUMES:');
+  console.log('   • 4 concurrent extractions');
+  console.log('   • 3 concurrent AI scoring operations');
+  console.log('   • Memory-optimized processing pipeline');
+  console.log('   • Automatic retry and error recovery');
+  console.log('   • Real-time progress tracking');
+  console.log('   • Efficient temporary file cleanup');
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('📋 QUICK START:');
+  console.log('   1. POST /api/config - Upload job description & rubric');
+  console.log('   2. POST /api/batch/create - Upload PDF resumes');
+  console.log('   3. POST /api/batch/{id}/start - Start processing');
+  console.log('   4. GET /api/batch/{id}/progress - Monitor progress');
+  console.log('   5. GET /api/batch/{id}/download/{type} - Download results');
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 });
+
+// Handle server errors
+server.on('error', (error: any) => {
+  if (error.code === 'EADDRINUSE') {
+    console.error(`❌ Port ${serverConfig.port} is already in use`);
+    process.exit(1);
+  } else {
+    console.error('❌ Server error:', error);
+    process.exit(1);
+  }
+});
+
+export default app;
