@@ -45,12 +45,12 @@ export interface ServerConfig {
   outputDir: string;
 }
 
-// Optimized for 500-1000+ resume processing
+// Optimized for cloud deployment
 export const config: ProcessingConfig = {
   concurrent: {
-    extraction: parseInt(process.env.CONCURRENT_EXTRACTIONS || '4'),
-    scoring: parseInt(process.env.CONCURRENT_SCORING || '3'),
-    maxMemoryMB: parseInt(process.env.MAX_MEMORY_MB || '2048')
+    extraction: parseInt(process.env.CONCURRENT_EXTRACTIONS || '2'),
+    scoring: parseInt(process.env.CONCURRENT_SCORING || '2'),
+    maxMemoryMB: parseInt(process.env.MAX_MEMORY_MB || '512')
   },
   timeouts: {
     extraction: 180000, // 3 minutes per extraction
@@ -63,8 +63,8 @@ export const config: ProcessingConfig = {
   },
   files: {
     maxSize: 10 * 1024 * 1024, // 10MB
-    maxBatch: 1000,
-    tempRetention: 3600000 // 1 hour
+    maxBatch: 100, // Reduced for cloud deployment
+    tempRetention: 1800000 // 30 minutes
   }
 };
 
@@ -84,9 +84,9 @@ export const apiConfig: APIConfig = {
 
 export const serverConfig: ServerConfig = {
   port: parseInt(process.env.PORT || '3000'),
-  corsOrigins: process.env.CORS_ORIGINS?.split(',') || ['http://localhost:3000'],
-  uploadDir: './uploads',
-  outputDir: './output'
+  corsOrigins: process.env.CORS_ORIGINS?.split(',') || ['*'], // Allow all origins in production
+  uploadDir: '/tmp/uploads', // Use /tmp for Render
+  outputDir: '/tmp/output'   // Use /tmp for Render
 };
 
 // Validation
