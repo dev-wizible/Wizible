@@ -115,32 +115,52 @@ export class BulkResumeProcessor extends EventEmitter {
 
   private async processBatchPipeline(batch: BatchJob): Promise<void> {
     try {
-      // Process files through extraction and scoring pipeline
-      const extractionLimit = pLimit(config.concurrent.extraction);
-      const scoringLimit = pLimit(config.concurrent.scoring);
-
-      // Start extraction for all files
-      const extractionPromises = batch.files.map(file => 
-        extractionLimit(() => this.processFileExtraction(batch.id, file))
-      );
-
-      // Process extractions and start scoring as they complete
-      const scoringPromises: Promise<void>[] = [];
+      console.log(`📋 Processing batch ${batch.id} with ${batch.files.length} files`);
       
-      for (const extractionPromise of extractionPromises) {
-        extractionPromise.then(async (file) => {
-          if (file && file.status === 'extracting') {
-            // File ready for scoring
-            const scoringPromise = scoringLimit(() => this.processFileScoring(batch.id, file));
-            scoringPromises.push(scoringPromise);
-          }
+      // Process files through extraction first, then scoring
+      for (const file of batch.files) {
+        if (batch.status !== 'running') {
+          console.log(`⏸️ Batch ${batch.id} is no longer running, stopping pipeline`);
+          break;
+        }
+
+        // Add to extraction queue
+        this.extractionQueue.add(async () => {
+          await this.processFileExtraction(batch.id, file);
         }).catch(error => {
-          console.error(`❌ Extraction pipeline error:`, error);
+          console.error(`❌ Extraction queue error for ${file.originalFile.originalname}:`, error);
+          this.handleFileError(batch, file, error, 'extraction');
         });
       }
 
-      // Wait for all processing to complete
-      await Promise.allSettled([...extractionPromises, ...scoringPromises]);
+      // Wait for all extractions to complete
+      await this.extractionQueue.onIdle();
+      console.log(`✅ All extractions completed for batch ${batch.id}`);
+
+      // Now process scoring for successfully extracted files
+      const extractedFiles = batch.files.filter(f => f.status === 'scoring' || f.results.extraction);
+      console.log(`🤖 Starting scoring for ${extractedFiles.length} extracted files`);
+
+      for (const file of extractedFiles) {
+        if (batch.status !== 'running') {
+          console.log(`⏸️ Batch ${batch.id} is no longer running, stopping scoring`);
+          break;
+        }
+
+        if (file.results.extraction) {
+          // Add to scoring queue
+          this.scoringQueue.add(async () => {
+            await this.processFileScoring(batch.id, file);
+          }).catch(error => {
+            console.error(`❌ Scoring queue error for ${file.originalFile.originalname}:`, error);
+            this.handleFileError(batch, file, error, 'scoring');
+          });
+        }
+      }
+
+      // Wait for all scoring to complete
+      await this.scoringQueue.onIdle();
+      console.log(`✅ All scoring completed for batch ${batch.id}`);
       
       // Finalize batch
       await this.finalizeBatch(batch);
@@ -152,9 +172,9 @@ export class BulkResumeProcessor extends EventEmitter {
     }
   }
 
-  private async processFileExtraction(batchId: string, file: ResumeFile): Promise<ResumeFile | null> {
+  private async processFileExtraction(batchId: string, file: ResumeFile): Promise<void> {
     const batch = this.jobs.get(batchId);
-    if (!batch || batch.status !== 'running') return null;
+    if (!batch || batch.status !== 'running') return;
 
     try {
       file.status = 'extracting';
@@ -167,6 +187,10 @@ export class BulkResumeProcessor extends EventEmitter {
       // Extract resume data
       const extractionResult = await this.extractor.extractResume(file.originalFile.path);
       
+      if (!extractionResult) {
+        throw new Error('No extraction result returned');
+      }
+
       file.results.extraction = extractionResult;
       file.progress.extractionEnd = new Date();
       file.status = 'scoring'; // Ready for scoring
@@ -183,14 +207,14 @@ export class BulkResumeProcessor extends EventEmitter {
       });
 
       console.log(`✅ Extracted: ${file.originalFile.originalname}`);
-      return file;
 
     } catch (error) {
+      console.error(`❌ Extraction failed for ${file.originalFile.originalname}:`, error);
       await this.handleFileError(batch, file, error as Error, 'extraction');
-      return null;
     } finally {
       // Clean up temp file
       this.cleanupTempFile(file.originalFile.path);
+      this.updateBatchMetrics(batch);
     }
   }
 
@@ -199,8 +223,15 @@ export class BulkResumeProcessor extends EventEmitter {
     if (!batch || batch.status !== 'running') return;
 
     try {
+      if (!file.results.extraction) {
+        throw new Error('No extraction data available for scoring');
+      }
+
+      file.status = 'scoring';
       file.progress.scoringStart = new Date();
       
+      this.updateBatchMetrics(batch);
+
       console.log(`🤖 Scoring: ${file.originalFile.originalname}`);
 
       // Score the resume
@@ -210,6 +241,10 @@ export class BulkResumeProcessor extends EventEmitter {
         evaluationRubric: batch.config.evaluationRubric,
         resumeFilename: file.originalFile.originalname
       });
+
+      if (!scores) {
+        throw new Error('No scoring result returned');
+      }
 
       file.results.scores = scores;
       file.progress.scoringEnd = new Date();
@@ -225,14 +260,15 @@ export class BulkResumeProcessor extends EventEmitter {
         fileId: file.id,
         data: { 
           filename: file.originalFile.originalname,
-          score: scores.Evaluation.TotalScore
+          score: scores.Evaluation?.TotalScore || 0
         },
         timestamp: new Date()
       });
 
-      console.log(`🎯 Scored: ${file.originalFile.originalname} (${scores.Evaluation.TotalScore}/100)`);
+      console.log(`🎯 Scored: ${file.originalFile.originalname} (${scores.Evaluation?.TotalScore || 0}/100)`);
 
     } catch (error) {
+      console.error(`❌ Scoring failed for ${file.originalFile.originalname}:`, error);
       await this.handleFileError(batch, file, error as Error, 'scoring');
     } finally {
       this.updateBatchMetrics(batch);
@@ -249,11 +285,13 @@ export class BulkResumeProcessor extends EventEmitter {
       file.status = phase === 'extraction' ? 'queued' : 'extracting';
       
       // Retry after delay
-      setTimeout(() => {
-        if (phase === 'extraction') {
-          this.processFileExtraction(batch.id, file);
-        } else {
-          this.processFileScoring(batch.id, file);
+      setTimeout(async () => {
+        if (batch.status === 'running') {
+          if (phase === 'extraction') {
+            await this.processFileExtraction(batch.id, file);
+          } else {
+            await this.processFileScoring(batch.id, file);
+          }
         }
       }, config.retries.delay * file.retryCount);
       
@@ -262,6 +300,8 @@ export class BulkResumeProcessor extends EventEmitter {
       file.error = `${phase} failed after ${config.retries.maxAttempts} attempts: ${error.message}`;
       
       console.error(`❌ ${phase} failed permanently for ${file.originalFile.originalname}: ${error.message}`);
+      
+      this.updateBatchMetrics(batch);
     }
   }
 
@@ -279,6 +319,17 @@ export class BulkResumeProcessor extends EventEmitter {
     const totalTime = Math.round((Date.now() - this.startTime) / 1000);
     
     console.log(`🎉 Batch ${batch.id} completed: ${successCount}/${batch.files.length} successful in ${totalTime}s`);
+    
+    // Log detailed results
+    console.log(`📊 Batch ${batch.id} Results:`);
+    batch.files.forEach(file => {
+      const status = file.status === 'completed' ? '✅' : '❌';
+      const score = file.results.scores?.Evaluation?.TotalScore || 0;
+      console.log(`   ${status} ${file.originalFile.originalname} - Score: ${score}/100 - Status: ${file.status}`);
+      if (file.error) {
+        console.log(`      Error: ${file.error}`);
+      }
+    });
     
     this.emitEvent({
       type: 'batch_completed',
@@ -367,78 +418,94 @@ export class BulkResumeProcessor extends EventEmitter {
   }
 
   private async saveExtractionResult(file: ResumeFile): Promise<void> {
-    const outputDir = path.join(serverConfig.outputDir, 'extractions');
-    if (!fs.existsSync(outputDir)) {
-      fs.mkdirSync(outputDir, { recursive: true });
-    }
+    try {
+      const outputDir = path.join(serverConfig.outputDir, 'extractions');
+      if (!fs.existsSync(outputDir)) {
+        fs.mkdirSync(outputDir, { recursive: true });
+      }
 
-    const filename = `${path.basename(file.originalFile.originalname, '.pdf')}.json`;
-    const filePath = path.join(outputDir, filename);
-    
-    fs.writeFileSync(filePath, JSON.stringify(file.results.extraction, null, 2));
+      const filename = `${path.basename(file.originalFile.originalname, '.pdf')}.json`;
+      const filePath = path.join(outputDir, filename);
+      
+      fs.writeFileSync(filePath, JSON.stringify(file.results.extraction, null, 2));
+      console.log(`💾 Saved extraction: ${filename}`);
+    } catch (error) {
+      console.error(`❌ Failed to save extraction for ${file.originalFile.originalname}:`, error);
+    }
   }
 
   private async saveScoreResult(file: ResumeFile): Promise<void> {
-    const outputDir = path.join(serverConfig.outputDir, 'scores');
-    if (!fs.existsSync(outputDir)) {
-      fs.mkdirSync(outputDir, { recursive: true });
+    try {
+      const outputDir = path.join(serverConfig.outputDir, 'scores');
+      if (!fs.existsSync(outputDir)) {
+        fs.mkdirSync(outputDir, { recursive: true });
+      }
+
+      const filename = `${path.basename(file.originalFile.originalname, '.pdf')}_scores.json`;
+      const filePath = path.join(outputDir, filename);
+      
+      const scoreData = {
+        filename: file.originalFile.originalname,
+        timestamp: new Date().toISOString(),
+        processingTime: file.progress.totalDuration,
+        scores: file.results.scores
+      };
+
+      fs.writeFileSync(filePath, JSON.stringify(scoreData, null, 2));
+      console.log(`💾 Saved scores: ${filename}`);
+    } catch (error) {
+      console.error(`❌ Failed to save scores for ${file.originalFile.originalname}:`, error);
     }
-
-    const filename = `${path.basename(file.originalFile.originalname, '.pdf')}_scores.json`;
-    const filePath = path.join(outputDir, filename);
-    
-    const scoreData = {
-      filename: file.originalFile.originalname,
-      timestamp: new Date().toISOString(),
-      processingTime: file.progress.totalDuration,
-      scores: file.results.scores
-    };
-
-    fs.writeFileSync(filePath, JSON.stringify(scoreData, null, 2));
   }
 
   private async generateBatchReport(batch: BatchJob): Promise<void> {
-    const reportDir = path.join(serverConfig.outputDir, 'reports');
-    if (!fs.existsSync(reportDir)) {
-      fs.mkdirSync(reportDir, { recursive: true });
+    try {
+      const reportDir = path.join(serverConfig.outputDir, 'reports');
+      if (!fs.existsSync(reportDir)) {
+        fs.mkdirSync(reportDir, { recursive: true });
+      }
+
+      const report = {
+        batchId: batch.id,
+        summary: {
+          totalFiles: batch.metrics.total,
+          completed: batch.metrics.completed,
+          failed: batch.metrics.failed,
+          successRate: `${((batch.metrics.completed / batch.metrics.total) * 100).toFixed(2)}%`,
+          processingTime: batch.metrics.timing.elapsedMs,
+          averageThroughput: batch.metrics.timing.throughputPerHour
+        },
+        performance: {
+          avgExtractionTime: Math.round(batch.metrics.timing.avgExtractionMs / 1000),
+          avgScoringTime: Math.round(batch.metrics.timing.avgScoringMs / 1000),
+          peakMemoryMB: this.memoryUsage.peak,
+          concurrencySettings: {
+            extraction: config.concurrent.extraction,
+            scoring: config.concurrent.scoring
+          }
+        },
+        files: batch.files.map(file => ({
+          filename: file.originalFile.originalname,
+          status: file.status,
+          score: file.results.scores?.Evaluation?.TotalScore || null,
+          processingTime: file.progress.totalDuration,
+          error: file.error
+        }))
+      };
+
+      const reportPath = path.join(reportDir, `batch-${batch.id}-report.json`);
+      fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
+      console.log(`📊 Generated batch report: batch-${batch.id}-report.json`);
+    } catch (error) {
+      console.error(`❌ Failed to generate batch report:`, error);
     }
-
-    const report = {
-      batchId: batch.id,
-      summary: {
-        totalFiles: batch.metrics.total,
-        completed: batch.metrics.completed,
-        failed: batch.metrics.failed,
-        successRate: `${((batch.metrics.completed / batch.metrics.total) * 100).toFixed(2)}%`,
-        processingTime: batch.metrics.timing.elapsedMs,
-        averageThroughput: batch.metrics.timing.throughputPerHour
-      },
-      performance: {
-        avgExtractionTime: Math.round(batch.metrics.timing.avgExtractionMs / 1000),
-        avgScoringTime: Math.round(batch.metrics.timing.avgScoringMs / 1000),
-        peakMemoryMB: this.memoryUsage.peak,
-        concurrencySettings: {
-          extraction: config.concurrent.extraction,
-          scoring: config.concurrent.scoring
-        }
-      },
-      files: batch.files.map(file => ({
-        filename: file.originalFile.originalname,
-        status: file.status,
-        score: file.results.scores?.Evaluation?.TotalScore || null,
-        processingTime: file.progress.totalDuration,
-        error: file.error
-      }))
-    };
-
-    const reportPath = path.join(reportDir, `batch-${batch.id}-report.json`);
-    fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
   }
 
   private cleanupTempFile(filePath: string): void {
     try {
       if (fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
+        console.log(`🧹 Cleaned up temp file: ${path.basename(filePath)}`);
       }
     } catch (error) {
       console.warn(`⚠️ Could not cleanup temp file ${filePath}:`, error);
