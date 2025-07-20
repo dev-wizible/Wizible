@@ -38,6 +38,7 @@ export interface APIConfig {
   };
 }
 
+
 export interface ServerConfig {
   port: number;
   corsOrigins: string[];
