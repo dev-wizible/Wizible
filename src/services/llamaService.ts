@@ -1,646 +1,467 @@
-// src/services/enhancedLlamaService.ts
-import axios, { AxiosInstance } from "axios";
+// src/LlamaService.ts
+import axios from "axios";
 import fs from "fs";
 import FormData from "form-data";
-import { apiConfig, processingConfig } from "../config/appConfig";
 
-export interface LlamaAgent {
-  id: string;
-  name: string;
-  created_at: string;
-  updated_at: string;
-  data_schema: any;
-  config: any;
-}
+export class LlamaService {
+  private readonly API_BASE = "https://api.cloud.llamaindex.ai/api/v1";
+  private readonly API_KEY: string;
 
-export interface LlamaFile {
-  id: string;
-  name: string;
-  size: number;
-  created_at: string;
-}
-
-export interface LlamaJob {
-  id: string;
-  status: "PENDING" | "PROCESSING" | "SUCCESS" | "FAILED";
-  created_at: string;
-  completed_at?: string;
-  error_message?: string;
-  extraction_agent_id: string;
-  file_id: string;
-}
-
-export class  LlamaService {
-  private axiosInstance: AxiosInstance;
-  private rateLimiter: Map<string, number> = new Map();
-  private requestQueue: Array<() => Promise<any>> = [];
-  private isProcessingQueue = false;
-
-  constructor(private apiKey: string = apiConfig.llamaCloud.apiKey) {
-    this.axiosInstance = axios.create({
-      baseURL: apiConfig.llamaCloud.baseUrl,
-      timeout: apiConfig.llamaCloud.timeout,
-      headers: {
-        'Authorization': `Bearer ${this.apiKey}`,
-        'User-Agent': 'Resume-Parser/1.0'
-      }
-    });
-
-    // Add response interceptor for rate limiting
-    this.axiosInstance.interceptors.response.use(
-      response => response,
-      error => {
-        if (error.response?.status === 429) {
-          console.warn('Rate limit hit, will retry after delay');
-          // Extract retry-after header if available
-          const retryAfter = error.response.headers['retry-after'];
-          const delay = retryAfter ? parseInt(retryAfter) * 1000 : processingConfig.retryDelay;
-          return this.delay(delay).then(() => {
-            return this.axiosInstance.request(error.config);
-          });
-        }
-        return Promise.reject(error);
-      }
-    );
-
-    this.startRateLimiterReset();
+  constructor(apiKey: string) {
+    this.API_KEY = apiKey;
   }
 
-  async getOrCreateAgent(): Promise<LlamaAgent> {
-    const agentName = "resume_parser_enhanced_v2";
-    
+  async getOrCreateAgent() {
+    const agentName = "resume_parser_ts";
     try {
-      // Try to get existing agent
-      const response = await this.queueRequest(() =>
-        this.axiosInstance.get(`/extraction/extraction-agents/by-name/${agentName}`)
+      const existing = await axios.get(
+        `${this.API_BASE}/extraction/extraction-agents/by-name/${agentName}`,
+        {
+          headers: { Authorization: `Bearer ${this.API_KEY}` },
+        }
       );
-      
-      console.log(`✅ Using existing agent: ${response.data.id}`);
-      return response.data;
-      
+      return existing.data;
     } catch (err: any) {
-      if (err.response?.status !== 404) {
-        throw new Error(`Failed to fetch agent: ${err.message}`);
-      }
+      if (err.response?.status !== 404) throw err;
     }
 
-    // Create new agent with enhanced schema
-    console.log(`🔄 Creating new agent: ${agentName}`);
-    
     const schema = {
       name: agentName,
       data_schema: {
-        type: "object",
+        additionalProperties: false,
         properties: {
-          name: { 
-            type: "string", 
-            description: "Candidate's full name as written on the resume" 
-          },
-          email: { 
-            type: "string", 
-            description: "Primary email address" 
-          },
-          phone: { 
-            type: "string", 
-            description: "Primary phone number with country code if available" 
-          },
-          location: {
-            type: "string",
-            description: "Current location (city, state/province, country)"
-          },
-          linkedin: { 
-            type: "string", 
-            description: "LinkedIn profile URL" 
-          },
-          github: { 
-            type: "string", 
-            description: "GitHub profile URL" 
-          },
-          website: {
-            type: "string",
-            description: "Personal website or portfolio URL"
-          },
-          summary: {
-            type: "string",
-            description: "Professional summary, objective, or profile statement"
-          },
-          education: {
-            type: "array",
-            description: "Educational qualifications and certifications",
-            items: {
-              type: "object",
-              properties: {
-                degree: { 
-                  type: "string", 
-                  description: "Degree name (e.g., Bachelor of Science, MBA)" 
-                },
-                field: {
-                  type: "string",
-                  description: "Field of study or major"
-                },
-                institution: {
-                  type: "string",
-                  description: "University, college, or educational institution name"
-                },
-                location: {
-                  type: "string",
-                  description: "Institution location"
-                },
-                gpa: { 
-                  type: "string", 
-                  description: "Grade point average or equivalent" 
-                },
-                dates: {
-                  type: "string",
-                  description: "Duration or graduation date (e.g., '2018-2022', 'May 2022')"
-                },
-                honors: {
-                  type: "string",
-                  description: "Academic honors, magna cum laude, etc."
-                }
+          basics: {
+            additionalProperties: false,
+            properties: {
+              name: {
+                description: "The full name of the candidate",
+                type: "string"
+              },
+              email: {
+                description: "The email address of the candidate",
+                type: "string"
+              },
+              phone: {
+                anyOf: [
+                  {
+                    type: "string"
+                  },
+                  {
+                    type: "null"
+                  }
+                ],
+                description: "The phone number of the candidate in any standard format"
+              },
+              location: {
+                anyOf: [
+                  {
+                    additionalProperties: false,
+                    properties: {
+                      city: {
+                        description: "The city where the candidate is located",
+                        type: "string"
+                      },
+                      region: {
+                        description: "State or province of the candidate",
+                        type: "string"
+                      },
+                      country: {
+                        description: "Country where the candidate is located",
+                        type: "string"
+                      }
+                    },
+                    required: [
+                      "city",
+                      "region",
+                      "country"
+                    ],
+                    type: "object"
+                  },
+                  {
+                    type: "null"
+                  }
+                ]
+              },
+              profiles: {
+                anyOf: [
+                  {
+                    items: {
+                      additionalProperties: false,
+                      properties: {
+                        network: {
+                          description: "Name of the social network (e.g., LinkedIn, GitHub)",
+                          type: "string"
+                        },
+                        url: {
+                          description: "Full URL to the profile",
+                          type: "string"
+                        }
+                      },
+                      required: [
+                        "network",
+                        "url"
+                      ],
+                      type: "object"
+                    },
+                    type: "array"
+                  },
+                  {
+                    type: "null"
+                  }
+                ]
+              },
+              summary: {
+                anyOf: [
+                  {
+                    type: "string"
+                  },
+                  {
+                    type: "null"
+                  }
+                ],
+                description: "Brief professional summary or objective statement"
               }
-            }
-          },
-          experience: {
-            type: "array",
-            description: "Professional work experience",
-            items: {
-              type: "object",
-              properties: {
-                company: { 
-                  type: "string", 
-                  description: "Company or organization name" 
-                },
-                title: { 
-                  type: "string", 
-                  description: "Job title or position held" 
-                },
-                location: { 
-                  type: "string", 
-                  description: "Work location (city, state)" 
-                },
-                dates: { 
-                  type: "string", 
-                  description: "Employment duration (e.g., 'Jan 2020 - Present')" 
-                },
-                responsibilities: {
-                  type: "array",
-                  items: { type: "string" },
-                  description: "Key responsibilities, achievements, and accomplishments"
-                },
-                technologies: {
-                  type: "array",
-                  items: { type: "string" },
-                  description: "Technologies, tools, or software used in this role"
-                }
-              }
-            }
-          },
-          projects: {
-            type: "array",
-            description: "Personal, academic, or professional projects",
-            items: {
-              type: "object",
-              properties: {
-                name: { 
-                  type: "string", 
-                  description: "Project name or title" 
-                },
-                description: {
-                  type: "string",
-                  description: "Brief project description"
-                },
-                tech_stack: {
-                  type: "array",
-                  items: { type: "string" },
-                  description: "Technologies, frameworks, and tools used"
-                },
-                highlights: {
-                  type: "array",
-                  items: { type: "string" },
-                  description: "Key features, achievements, or outcomes"
-                },
-                url: {
-                  type: "string",
-                  description: "Project URL, demo link, or repository"
-                },
-                dates: {
-                  type: "string",
-                  description: "Project duration or completion date"
-                }
-              }
-            }
+            },
+            required: [
+              "name",
+              "email",
+              "phone",
+              "location",
+              "profiles",
+              "summary"
+            ],
+            type: "object"
           },
           skills: {
-            type: "object",
-            description: "Technical and professional skills organized by category",
-            properties: {
-              programming_languages: {
-                type: "array",
-                items: { type: "string" },
-                description: "Programming languages (e.g., Python, JavaScript, Java)"
+            description: "Technical and professional skills grouped by category",
+            items: {
+              additionalProperties: false,
+              properties: {
+                category: {
+                  description: "Skill category (e.g., Programming Languages, Tools, Soft Skills)",
+                  type: "string"
+                },
+                keywords: {
+                  description: "List of specific skills within the category",
+                  items: {
+                    type: "string"
+                  },
+                  type: "array"
+                },
+                level: {
+                  anyOf: [
+                    {
+                      type: "string"
+                    },
+                    {
+                      type: "null"
+                    }
+                  ],
+                  description: "Proficiency level in this skill category"
+                }
               },
-              frameworks: {
-                type: "array",
-                items: { type: "string" },
-                description: "Frameworks and libraries (e.g., React, Django, Express)"
+              required: [
+                "category",
+                "keywords",
+                "level"
+              ],
+              type: "object"
+            },
+            type: "array"
+          },
+          experience: {
+            description: "Professional work experience in reverse chronological order",
+            items: {
+              additionalProperties: false,
+              properties: {
+                company: {
+                  description: "Name of the employer or company",
+                  type: "string"
+                },
+                position: {
+                  description: "Job title or role",
+                  type: "string"
+                },
+                startDate: {
+                  description: "Start date of employment (YYYY-MM or YYYY-MM-DD)",
+                  type: "string"
+                },
+                endDate: {
+                  anyOf: [
+                    {
+                      type: "string"
+                    },
+                    {
+                      type: "null"
+                    }
+                  ],
+                  description: "End date of employment (YYYY-MM or YYYY-MM-DD), or 'Present' if current"
+                },
+                impact: {
+                  anyOf: [
+                    {
+                      items: {
+                        type: "string"
+                      },
+                      type: "array"
+                    },
+                    {
+                      type: "null"
+                    }
+                  ],
+                  description: "List of all the key impacts which the individual has contributed to in their tenure in this organization. Always mentioned in some numerical value."
+                },
+                responsibilties: {
+                  description: "list of all the tasks and responsibilities they were looking at in a particular designation in that company",
+                  type: "string"
+                },
+                "team management": {
+                  description: "Candidate mentions the number of people and the type of people they have managed in that particular designation/role.",
+                  type: "string"
+                },
+                "awards and recognitions": {
+                  description: "awards and recognitions given by management or manager for performing great at work.",
+                  type: "string"
+                }
               },
-              databases: {
-                type: "array",
-                items: { type: "string" },
-                description: "Database technologies (e.g., PostgreSQL, MongoDB, Redis)"
+              required: [
+                "company",
+                "position",
+                "startDate",
+                "endDate",
+                "impact",
+                "responsibilties",
+                "team management",
+                "awards and recognitions"
+              ],
+              type: "object"
+            },
+            type: "array"
+          },
+          education: {
+            anyOf: [
+              {
+                items: {
+                  additionalProperties: false,
+                  properties: {
+                    institution: {
+                      type: "string"
+                    },
+                    degree: {
+                      type: "string"
+                    },
+                    field: {
+                      anyOf: [
+                        {
+                          type: "string"
+                        },
+                        {
+                          type: "null"
+                        }
+                      ]
+                    },
+                    graduationDate: {
+                      anyOf: [
+                        {
+                          type: "string"
+                        },
+                        {
+                          type: "null"
+                        }
+                      ]
+                    },
+                    gpa: {
+                      anyOf: [
+                        {
+                          type: "number"
+                        },
+                        {
+                          type: "null"
+                        }
+                      ]
+                    }
+                  },
+                  required: [
+                    "institution",
+                    "degree",
+                    "field",
+                    "graduationDate",
+                    "gpa"
+                  ],
+                  type: "object"
+                },
+                type: "array"
               },
-              tools: {
-                type: "array",
-                items: { type: "string" },
-                description: "Development tools and software (e.g., Docker, Git, AWS)"
-              },
-              soft_skills: {
-                type: "array",
-                items: { type: "string" },
-                description: "Soft skills and competencies (e.g., Leadership, Communication)"
-              },
-              other: {
-                type: "array",
-                items: { type: "string" },
-                description: "Other relevant skills not categorized above"
+              {
+                type: "null"
               }
-            }
+            ]
           },
           certifications: {
-            type: "array",
-            description: "Professional certifications and licenses",
-            items: {
-              type: "object",
-              properties: {
-                name: {
-                  type: "string",
-                  description: "Certification name"
+            anyOf: [
+              {
+                items: {
+                  additionalProperties: false,
+                  properties: {
+                    name: {
+                      type: "string"
+                    },
+                    issuer: {
+                      anyOf: [
+                        {
+                          type: "string"
+                        },
+                        {
+                          type: "null"
+                        }
+                      ]
+                    },
+                    date: {
+                      type: "string"
+                    },
+                    validUntil: {
+                      anyOf: [
+                        {
+                          type: "string"
+                        },
+                        {
+                          type: "null"
+                        }
+                      ]
+                    }
+                  },
+                  required: [
+                    "name",
+                    "issuer",
+                    "date",
+                    "validUntil"
+                  ],
+                  type: "object"
                 },
-                issuer: {
-                  type: "string",
-                  description: "Issuing organization"
-                },
-                date: {
-                  type: "string",
-                  description: "Issue date or expiration date"
-                },
-                credential_id: {
-                  type: "string",
-                  description: "Credential or certificate ID"
-                }
+                type: "array"
+              },
+              {
+                type: "null"
               }
-            }
+            ]
           },
-          awards: {
-            type: "array",
-            items: { type: "string" },
-            description: "Awards, honors, and recognition"
-          },
-          languages: {
-            type: "array",
-            description: "Spoken languages and proficiency levels",
-            items: {
-              type: "object",
-              properties: {
-                language: {
-                  type: "string",
-                  description: "Language name"
+          publications: {
+            anyOf: [
+              {
+                items: {
+                  additionalProperties: false,
+                  properties: {
+                    title: {
+                      type: "string"
+                    },
+                    publisher: {
+                      type: "string"
+                    },
+                    date: {
+                      type: "string"
+                    },
+                    url: {
+                      type: "string"
+                    }
+                  },
+                  required: [
+                    "title",
+                    "publisher",
+                    "date",
+                    "url"
+                  ],
+                  type: "object"
                 },
-                proficiency: {
-                  type: "string",
-                  description: "Proficiency level (e.g., Native, Fluent, Conversational)"
-                }
+                type: "array"
+              },
+              {
+                type: "null"
               }
-            }
-          },
-          volunteer_experience: {
-            type: "array",
-            description: "Volunteer work and community involvement",
-            items: {
-              type: "object",
-              properties: {
-                organization: {
-                  type: "string",
-                  description: "Organization name"
-                },
-                role: {
-                  type: "string",
-                  description: "Volunteer role or position"
-                },
-                dates: {
-                  type: "string",
-                  description: "Duration of volunteer work"
-                },
-                description: {
-                  type: "string",
-                  description: "Description of volunteer activities"
-                }
-              }
-            }
-          },
-          years_of_experience: {
-            type: "number",
-            description: "Total years of professional work experience"
+            ]
           }
         },
-        required: ["name"]
+        required: [
+          "basics",
+          "skills",
+          "experience",
+          "education",
+          "certifications",
+          "publications"
+        ],
+        type: "object"
       },
       config: {
         extraction_target: "PER_DOC",
         extraction_mode: "BALANCED",
-        quality_preset: "HIGH_QUALITY"
-      }
+      },
     };
 
-    try {
-      const response = await this.queueRequest(() =>
-        this.axiosInstance.post("/extraction/extraction-agents", schema)
-      );
-      
-      console.log(`✅ Created new agent: ${response.data.id}`);
-      return response.data;
-      
-    } catch (error: any) {
-      throw new Error(`Failed to create agent: ${error.message}`);
-    }
+    const res = await axios.post(
+      `${this.API_BASE}/extraction/extraction-agents`,
+      schema,
+      {
+        headers: {
+          Authorization: `Bearer ${this.API_KEY}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+    return res.data;
   }
 
-  async uploadFile(filePath: string): Promise<LlamaFile> {
-    if (!fs.existsSync(filePath)) {
-      throw new Error(`File not found: ${filePath}`);
-    }
-
-    const fileStats = fs.statSync(filePath);
-    console.log(`📤 Uploading file: ${filePath} (${this.formatBytes(fileStats.size)})`);
-
+  async uploadFile(filePath: string) {
     const form = new FormData();
     form.append("upload_file", fs.createReadStream(filePath));
+    const res = await axios.post(`${this.API_BASE}/files`, form, {
+      headers: {
+        Authorization: `Bearer ${this.API_KEY}`,
+        ...form.getHeaders(),
+      },
+    });
+    return res.data;
+  }
 
-    try {
-      const response = await this.queueRequest(() =>
-        this.axiosInstance.post("/files", form, {
-          headers: {
-            ...form.getHeaders(),
-            'Content-Length': form.getLengthSync()
-          },
-          maxContentLength: Infinity,
-          maxBodyLength: Infinity
-        })
-      );
-
-      console.log(`✅ File uploaded: ${response.data.id}`);
-      return response.data;
-
-    } catch (error: any) {
-      if (error.response?.status === 413) {
-        throw new Error("File too large for upload");
+  async runExtraction(agentId: string, fileId: string) {
+    const res = await axios.post(
+      `${this.API_BASE}/extraction/jobs`,
+      {
+        extraction_agent_id: agentId,
+        file_id: fileId,
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${this.API_KEY}`,
+          "Content-Type": "application/json",
+        },
       }
-      throw new Error(`Failed to upload file: ${error.message}`);
-    }
+    );
+    return res.data;
   }
 
-  async runExtraction(agentId: string, fileId: string): Promise<LlamaJob> {
-    console.log(`🚀 Starting extraction: agent=${agentId}, file=${fileId}`);
-
-    try {
-      const response = await this.queueRequest(() =>
-        this.axiosInstance.post("/extraction/jobs", {
-          extraction_agent_id: agentId,
-          file_id: fileId
-        })
-      );
-
-      console.log(`✅ Extraction job started: ${response.data.id}`);
-      return response.data;
-
-    } catch (error: any) {
-      throw new Error(`Failed to start extraction: ${error.message}`);
-    }
-  }
-
-  async pollJob(jobId: string): Promise<LlamaJob> {
+  async pollJob(jobId: string) {
     let status = "PENDING";
     let attempt = 0;
-    const maxAttempts = Math.floor(processingConfig.jobTimeout / 3000); // 3 second intervals
 
-    console.log(`⏳ Polling job: ${jobId} (max ${maxAttempts} attempts)`);
-
-    while (status !== "SUCCESS" && attempt < maxAttempts) {
-      try {
-        const response = await this.queueRequest(() =>
-          this.axiosInstance.get(`/extraction/jobs/${jobId}`)
-        );
-
-        const job = response.data;
-        status = job.status;
-        
-        console.log(`📊 Job ${jobId} status: ${status} (attempt ${attempt + 1}/${maxAttempts})`);
-
-        if (status === "SUCCESS") {
-          console.log(`✅ Job completed successfully: ${jobId}`);
-          return job;
-        }
-        
-        if (status === "FAILED") {
-          const errorMsg = job.error_message || "Unknown error";
-          throw new Error(`Extraction failed: ${errorMsg}`);
-        }
-
-        await this.delay(3000); // 3 second delay between polls
-        attempt++;
-
-      } catch (error: any) {
-        if (error.message.includes("Extraction failed")) {
-          throw error; // Re-throw extraction failures
-        }
-        
-        console.warn(`⚠️ Polling attempt ${attempt + 1} failed: ${error.message}`);
-        
-        if (attempt >= processingConfig.maxRetries) {
-          throw new Error(`Polling failed after ${processingConfig.maxRetries} attempts: ${error.message}`);
-        }
-        
-        await this.delay(processingConfig.retryDelay * (attempt + 1)); // Exponential backoff
-        attempt++;
-      }
-    }
-
-    throw new Error(`Extraction timeout after ${maxAttempts} attempts (${processingConfig.jobTimeout}ms)`);
-  }
-
-  async getResult(jobId: string): Promise<any> {
-    console.log(`📥 Getting result for job: ${jobId}`);
-
-    try {
-      const response = await this.queueRequest(() =>
-        this.axiosInstance.get(`/extraction/jobs/${jobId}/result`)
-      );
-
-      console.log(`✅ Result retrieved for job: ${jobId}`);
-      return response.data;
-
-    } catch (error: any) {
-      throw new Error(`Failed to get result: ${error.message}`);
-    }
-  }
-
-  // Enhanced queue system for rate limiting
-  private async queueRequest<T>(requestFn: () => Promise<T>): Promise<T> {
-    return new Promise((resolve, reject) => {
-      this.requestQueue.push(async () => {
-        try {
-          // Check rate limits before making request
-          if (this.isRateLimited()) {
-            await this.delay(1000); // Wait 1 second if rate limited
-          }
-
-          const result = await requestFn();
-          this.incrementRateLimit();
-          resolve(result);
-        } catch (error) {
-          reject(error);
-        }
+    while (status !== "SUCCESS" && attempt < 10) {
+      const res = await axios.get(`${this.API_BASE}/extraction/jobs/${jobId}`, {
+        headers: { Authorization: `Bearer ${this.API_KEY}` },
       });
-
-      this.processRequestQueue();
-    });
+      status = res.data.status;
+      if (status === "SUCCESS") return res.data;
+      if (status === "FAILED") throw new Error("Extraction failed");
+      await new Promise((r) => setTimeout(r, 3000));
+      attempt++;
+    }
+    throw new Error("Extraction timeout");
   }
 
-  private async processRequestQueue(): Promise<void> {
-    if (this.isProcessingQueue || this.requestQueue.length === 0) {
-      return;
-    }
-
-    this.isProcessingQueue = true;
-
-    while (this.requestQueue.length > 0) {
-      const request = this.requestQueue.shift();
-      if (request) {
-        try {
-          await request();
-          // Small delay between requests to avoid overwhelming the API
-          await this.delay(processingConfig.requestDelay);
-        } catch (error) {
-          console.error('Request queue error:', error);
-        }
+  async getResult(jobId: string) {
+    const res = await axios.get(
+      `${this.API_BASE}/extraction/jobs/${jobId}/result`,
+      {
+        headers: { Authorization: `Bearer ${this.API_KEY}` },
       }
-    }
-
-    this.isProcessingQueue = false;
+    );
+    return res.data;
   }
-
-  private isRateLimited(): boolean {
-    const currentMinute = Math.floor(Date.now() / 60000);
-    const requestsThisMinute = this.rateLimiter.get(currentMinute.toString()) || 0;
-    return requestsThisMinute >= 100; // Conservative rate limit
-  }
-
-  private incrementRateLimit(): void {
-    const currentMinute = Math.floor(Date.now() / 60000);
-    const key = currentMinute.toString();
-    this.rateLimiter.set(key, (this.rateLimiter.get(key) || 0) + 1);
-  }
-
-  private startRateLimiterReset(): void {
-    setInterval(() => {
-      const currentMinute = Math.floor(Date.now() / 60000);
-      // Clean up old entries (keep last 5 minutes)
-      for (const [key] of this.rateLimiter) {
-        if (parseInt(key) < currentMinute - 5) {
-          this.rateLimiter.delete(key);
-        }
-      }
-    }, 60000); // Reset every minute
-  }
-
-  private delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
-  }
-
-  private formatBytes(bytes: number): string {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  }
-
-  // Health check and diagnostics
-  async healthCheck(): Promise<{
-    status: 'healthy' | 'degraded' | 'unhealthy';
-    responseTime: number;
-    rateLimitStatus: {
-      requestsThisMinute: number;
-      isLimited: boolean;
-    };
-    queueStatus: {
-      queueLength: number;
-      isProcessing: boolean;
-    };
-  }> {
-    const startTime = Date.now();
-    
-    try {
-      // Simple health check - try to list agents
-      await this.queueRequest(() =>
-        this.axiosInstance.get('/extraction/extraction-agents?limit=1')
-      );
-
-      const responseTime = Date.now() - startTime;
-      const currentMinute = Math.floor(Date.now() / 60000);
-      const requestsThisMinute = this.rateLimiter.get(currentMinute.toString()) || 0;
-
-      return {
-        status: responseTime < 5000 ? 'healthy' : 'degraded',
-        responseTime,
-        rateLimitStatus: {
-          requestsThisMinute,
-          isLimited: this.isRateLimited()
-        },
-        queueStatus: {
-          queueLength: this.requestQueue.length,
-          isProcessing: this.isProcessingQueue
-        }
-      };
-
-    } catch (error) {
-      return {
-        status: 'unhealthy',
-        responseTime: Date.now() - startTime,
-        rateLimitStatus: {
-          requestsThisMinute: 0,
-          isLimited: false
-        },
-        queueStatus: {
-          queueLength: this.requestQueue.length,
-          isProcessing: this.isProcessingQueue
-        }
-      };
-    }
-  }
-
-  // Get service statistics
-  getStatistics(): {
-    totalRequests: number;
-    queueLength: number;
-    averageResponseTime: number;
-    rateLimitHits: number;
-  } {
-    const currentMinute = Math.floor(Date.now() / 60000);
-    let totalRequests = 0;
-    
-    for (const [key, count] of this.rateLimiter) {
-      if (parseInt(key) >= currentMinute - 60) { // Last hour
-        totalRequests += count;
-      }
-    }
-
-    return {
-      totalRequests,
-      queueLength: this.requestQueue.length,
-      averageResponseTime: 0, // Would need to track this
-      rateLimitHits: 0 // Would need to track this
-    };
-  }
-}
+} 

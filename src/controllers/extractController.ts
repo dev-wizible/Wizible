@@ -19,8 +19,6 @@ export class ExtractController {
     const fileValidator = new FileValidationService();
     this.batchService = new BatchProcessingService(
       this.llamaService,
-      dbService,
-      fileValidator
     );
   }
 

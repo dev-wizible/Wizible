@@ -1,8 +1,40 @@
-// src/services/databaseService.ts
+// src/services/databaseService.ts - FIXED VERSION
 import fs from 'fs';
 import path from 'path';
 import { storageConfig } from '../config/appConfig';
-import { BatchJob } from './batchProcessingService';
+
+// Updated BatchJob interface to include files
+export interface BatchJob {
+  id: string;
+  status: "pending" | "processing" | "completed" | "failed" | "cancelled" | "paused";
+  total: number;
+  processed: number;
+  success: number;
+  errors: number;
+  startTime: Date;
+  endTime?: Date;
+  pausedTime?: Date;
+  estimatedCompletion?: Date;
+  outputDir: string;
+  logs: BatchLog[];
+  priority: "low" | "normal" | "high";
+  metadata: {
+    originalFileCount: number;
+    validFileCount: number;
+    totalSizeBytes: number;
+    averageProcessingTime?: number;
+  };
+  files: Express.Multer.File[]; // Add files property
+}
+
+export interface BatchLog {
+  timestamp: Date;
+  message: string;
+  type: "info" | "success" | "error" | "warning" | "debug";
+  filename?: string;
+  processingTime?: number;
+  retryCount?: number;
+}
 
 export class DatabaseService {
   private readonly DB_DIR = path.join(storageConfig.batchOutputsDir, 'db');
@@ -32,10 +64,23 @@ export class DatabaseService {
       const jobs = await this.loadJobs();
       const existingIndex = jobs.findIndex(j => j.id === job.id);
       
+      // Create a serializable version of the job (without file streams)
+      const serializableJob = {
+        ...job,
+        files: job.files.map(file => ({
+          originalname: file.originalname,
+          filename: file.filename,
+          path: file.path,
+          size: file.size,
+          mimetype: file.mimetype,
+          // Don't serialize the stream/buffer data
+        }))
+      };
+      
       if (existingIndex >= 0) {
-        jobs[existingIndex] = job;
+        jobs[existingIndex] = serializableJob as BatchJob;
       } else {
-        jobs.push(job);
+        jobs.push(serializableJob as BatchJob);
       }
 
       // Write atomically using temporary file
@@ -58,7 +103,7 @@ export class DatabaseService {
       const data = fs.readFileSync(this.JOBS_FILE, 'utf8');
       const jobs = JSON.parse(data);
       
-      // Convert date strings back to Date objects
+      // Convert date strings back to Date objects and restore file objects
       return jobs.map((job: any) => ({
         ...job,
         startTime: new Date(job.startTime),
@@ -68,7 +113,11 @@ export class DatabaseService {
         logs: job.logs.map((log: any) => ({
           ...log,
           timestamp: new Date(log.timestamp)
-        }))
+        })),
+        files: (job.files || []).map((file: any) => ({
+          ...file,
+          // Restore as Express.Multer.File compatible object
+        } as Express.Multer.File))
       }));
 
     } catch (error) {
