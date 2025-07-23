@@ -19,7 +19,7 @@ export class ResumeController {
   private async initializeProcessor(): Promise<void> {
     try {
       await this.processor.initialize();
-      console.log('✅ ResumeController initialized');
+      console.log('✅ ResumeController initialized with validation services');
     } catch (error) {
       console.error('❌ Failed to initialize ResumeController:', error);
     }
@@ -54,7 +54,8 @@ export class ResumeController {
         evaluationRubric: evaluationRubric.trim(),
         concurrency: {
           extraction: 4,
-          scoring: 3
+          scoring: 3,
+          validation: 4
         }
       };
 
@@ -117,7 +118,7 @@ export class ResumeController {
         return;
       }
 
-      console.log(`📋 Creating batch for ${pdfFiles.length} PDF files`);
+      console.log(`📋 Creating batch for ${pdfFiles.length} PDF files with validation`);
 
       const batchId = await this.processor.createBatch(pdfFiles, this.jobConfig);
 
@@ -126,7 +127,8 @@ export class ResumeController {
         data: {
           batchId,
           totalFiles: pdfFiles.length,
-          status: 'created'
+          status: 'created',
+          pipeline: 'Extract → Score → Validate (Gemini + Anthropic)'
         },
         timestamp: new Date().toISOString()
       });
@@ -153,7 +155,8 @@ export class ResumeController {
         data: {
           batchId,
           status: 'started',
-          message: 'Batch processing started successfully'
+          message: 'Batch processing started with 3-stage pipeline (Extract → Score → Validate)',
+          services: ['LlamaIndex', 'OpenAI', 'Gemini', 'Anthropic']
         },
         timestamp: new Date().toISOString()
       });
@@ -316,7 +319,16 @@ export class ResumeController {
         startedAt: batch.startedAt,
         completedAt: batch.completedAt,
         processingTime: batch.metrics.timing.elapsedMs,
-        throughput: batch.metrics.timing.throughputPerHour
+        throughput: batch.metrics.timing.throughputPerHour,
+        validation: {
+          totalValidated: batch.metrics.validation.totalValidated,
+          geminiAgreementRate: batch.metrics.validation.totalValidated > 0 ? 
+            (batch.metrics.validation.geminiAgreement / batch.metrics.validation.totalValidated * 100).toFixed(1) + '%' : '0%',
+          anthropicAgreementRate: batch.metrics.validation.totalValidated > 0 ? 
+            (batch.metrics.validation.anthropicAgreement / batch.metrics.validation.totalValidated * 100).toFixed(1) + '%' : '0%',
+          consensusRate: batch.metrics.validation.totalValidated > 0 ? 
+            (batch.metrics.validation.consensusAgreement / batch.metrics.validation.totalValidated * 100).toFixed(1) + '%' : '0%'
+        }
       }));
 
       res.status(200).json({
@@ -338,15 +350,15 @@ export class ResumeController {
     }
   };
 
-  // Download batch results
+  // Download batch results (UPDATED to include validations)
   downloadBatchResults = async (req: Request, res: Response): Promise<void> => {
     try {
       const { batchId, type } = req.params;
 
-      if (!['extractions', 'scores', 'report'].includes(type)) {
+      if (!['extractions', 'scores', 'validations', 'report'].includes(type)) {
         res.status(400).json({
           success: false,
-          error: 'Invalid download type. Use: extractions, scores, or report',
+          error: 'Invalid download type. Use: extractions, scores, validations, or report',
           timestamp: new Date().toISOString()
         });
         return;
@@ -356,6 +368,8 @@ export class ResumeController {
         await this.downloadExtractions(batchId, res);
       } else if (type === 'scores') {
         await this.downloadScores(batchId, res);
+      } else if (type === 'validations') {
+        await this.downloadValidations(batchId, res);
       } else if (type === 'report') {
         await this.downloadReport(batchId, res);
       }
@@ -450,6 +464,47 @@ export class ResumeController {
     archive.finalize();
   }
 
+  // NEW: Download validation results
+  private async downloadValidations(batchId: string, res: Response): Promise<void> {
+    const validationsDir = path.join(serverConfig.outputDir, 'validations');
+    
+    if (!fs.existsSync(validationsDir)) {
+      res.status(404).json({
+        success: false,
+        error: 'No validation results found',
+        timestamp: new Date().toISOString()
+      });
+      return;
+    }
+
+    const zipFilename = `batch-${batchId}-validations.zip`;
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${zipFilename}"`);
+
+    const archive = archiver('zip', { zlib: { level: 9 } });
+    archive.on('error', (err) => {
+      console.error('Archive error:', err);
+      res.status(500).json({
+        success: false,
+        error: 'Error creating zip file',
+        timestamp: new Date().toISOString()
+      });
+    });
+
+    archive.pipe(res);
+
+    // Add all validation JSON files to the archive
+    const files = fs.readdirSync(validationsDir);
+    files.forEach(file => {
+      if (file.endsWith('_validation.json')) {
+        const filePath = path.join(validationsDir, file);
+        archive.file(filePath, { name: file });
+      }
+    });
+
+    archive.finalize();
+  }
+
   private async downloadReport(batchId: string, res: Response): Promise<void> {
     const reportPath = path.join(serverConfig.outputDir, 'reports', `batch-${batchId}-report.json`);
     
@@ -504,11 +559,17 @@ export class ResumeController {
     }
   };
 
-  // Get system health and statistics
+  // Get system health and statistics (UPDATED with validation metrics)
   getSystemHealth = async (req: Request, res: Response): Promise<void> => {
     try {
       const batches = this.processor.getAllBatches();
       const memUsage = process.memoryUsage();
+      
+      const completedBatches = batches.filter(b => b.status === 'completed');
+      const totalValidated = completedBatches.reduce((sum, b) => sum + b.metrics.validation.totalValidated, 0);
+      const totalGeminiAgreements = completedBatches.reduce((sum, b) => sum + b.metrics.validation.geminiAgreement, 0);
+      const totalAnthropicAgreements = completedBatches.reduce((sum, b) => sum + b.metrics.validation.anthropicAgreement, 0);
+      const totalConsensus = completedBatches.reduce((sum, b) => sum + b.metrics.validation.consensusAgreement, 0);
       
       const stats = {
         system: {
@@ -523,7 +584,7 @@ export class ResumeController {
         batches: {
           total: batches.length,
           active: batches.filter(b => ['running', 'paused'].includes(b.status)).length,
-          completed: batches.filter(b => b.status === 'completed').length,
+          completed: completedBatches.length,
           failed: batches.filter(b => b.status === 'failed').length
         },
         processing: {
@@ -532,11 +593,20 @@ export class ResumeController {
           averageSuccessRate: batches.length > 0 ? 
             batches.reduce((sum, b) => sum + (b.metrics.completed / b.metrics.total), 0) / batches.length * 100 : 0
         },
+        validation: {
+          totalValidated,
+          geminiAgreementRate: totalValidated > 0 ? (totalGeminiAgreements / totalValidated * 100).toFixed(1) + '%' : '0%',
+          anthropicAgreementRate: totalValidated > 0 ? (totalAnthropicAgreements / totalValidated * 100).toFixed(1) + '%' : '0%',
+          consensusRate: totalValidated > 0 ? (totalConsensus / totalValidated * 100).toFixed(1) + '%' : '0%',
+          services: ['Gemini 1.5 Pro', 'Claude 3.5 Sonnet']
+        },
         configuration: {
           hasJobConfig: !!this.jobConfig,
           concurrentExtractions: 4,
           concurrentScoring: 3,
-          maxMemoryMB: 2048
+          concurrentValidations: 4,
+          maxMemoryMB: 2048,
+          pipeline: 'Extract → Score → Validate (Gemini + Anthropic)'
         }
       };
 

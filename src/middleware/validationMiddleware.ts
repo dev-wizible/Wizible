@@ -40,8 +40,8 @@ export const validationMiddleware = {
 
   validateDownloadType: [
     param("type")
-      .isIn(["extractions", "scores", "report"])
-      .withMessage("Download type must be: extractions, scores, or report"),
+      .isIn(["extractions", "scores", "validations", "report"])
+      .withMessage("Download type must be: extractions, scores, validations, or report"),
     handleValidationErrors,
   ],
 

@@ -176,7 +176,7 @@
 
       .metrics-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
         gap: 1rem;
         margin-bottom: 2rem;
       }
@@ -369,7 +369,7 @@
     <div class="container">
       <div class="header">
         <h1>🚀 Bulk Resume Processor</h1>
-        <p class="version">v2.0 - Production Ready for 500-1000+ Resumes</p>
+        <p class="version">v2.0 - AI Validation with Gemini & Anthropic</p>
       </div>
 
       <div class="main-content">
@@ -446,7 +446,7 @@
 
         <!-- Progress Section -->
         <div id="progressSection" class="progress-section">
-          <h3>📊 Processing Progress</h3>
+          <h3>📊 Processing Progress - 3-Stage AI Pipeline</h3>
 
           <div class="metrics-grid">
             <div class="metric-card">
@@ -460,6 +460,14 @@
             <div class="metric-card">
               <div id="failedFiles" class="metric-value">0</div>
               <div class="metric-label">Failed</div>
+            </div>
+            <div class="metric-card">
+              <div id="geminiAgreement" class="metric-value">0%</div>
+              <div class="metric-label">Gemini Agreement</div>
+            </div>
+            <div class="metric-card">
+              <div id="anthropicAgreement" class="metric-value">0%</div>
+              <div class="metric-label">Anthropic Agreement</div>
             </div>
             <div class="metric-card">
               <div id="throughput" class="metric-value">0</div>
@@ -528,6 +536,14 @@
               <div class="stat-label">Scoring</div>
             </div>
             <div class="stat-item">
+              <div id="validating" class="stat-value">0</div>
+              <div class="stat-label">Validating</div>
+            </div>
+            <div class="stat-item">
+              <div id="consensusRate" class="stat-value">0%</div>
+              <div class="stat-label">Consensus Rate</div>
+            </div>
+            <div class="stat-item">
               <div id="memoryUsage" class="stat-value">0MB</div>
               <div class="stat-label">Memory Usage</div>
             </div>
@@ -546,8 +562,8 @@
           </h2>
           <div id="statusLog" class="status-log">
             <div class="log-entry info">
-              System ready - configure job settings and upload resumes to
-              begin...
+              System ready - configure job settings and upload resumes to begin
+              3-stage AI validation...
             </div>
           </div>
         </div>
@@ -556,8 +572,8 @@
         <div id="resultsSection" class="results-section">
           <h3>🎉 Batch Processing Complete!</h3>
           <p>
-            All resumes have been processed through the extraction and scoring
-            pipeline.
+            All resumes have been processed through the 3-stage AI pipeline:
+            Extraction → Scoring → Validation
           </p>
           <div class="results-buttons">
             <button id="downloadExtractions" class="btn">
@@ -567,6 +583,10 @@
             <button id="downloadScores" class="btn btn-success">
               <span>🎯</span>
               Download Scores
+            </button>
+            <button id="downloadValidations" class="btn">
+              <span>🔍</span>
+              Download Validations
             </button>
             <button id="downloadReport" class="btn">
               <span>📊</span>
@@ -589,7 +609,10 @@
           this.startTime = null;
 
           this.initializeEventListeners();
-          this.addLog("System initialized - ready for bulk processing", "info");
+          this.addLog(
+            "System initialized - ready for 3-stage AI validation pipeline",
+            "info"
+          );
           this.addLog(`API Base URL: ${this.apiBaseUrl}`, "info");
           this.checkServerConnection();
         }
@@ -620,6 +643,10 @@
 
             if (response.ok) {
               this.addLog("✅ Connected to server successfully", "success");
+              this.addLog(
+                "🤖 AI Services: LlamaIndex + OpenAI + Gemini + Anthropic",
+                "info"
+              );
             } else {
               throw new Error(
                 `Server responded with status ${response.status}`
@@ -687,6 +714,11 @@
             .getElementById("downloadScores")
             .addEventListener("click", () => this.downloadResults("scores"));
           document
+            .getElementById("downloadValidations")
+            .addEventListener("click", () =>
+              this.downloadResults("validations")
+            );
+          document
             .getElementById("downloadReport")
             .addEventListener("click", () => this.downloadResults("report"));
         }
@@ -734,6 +766,7 @@
 
             if (result.success) {
               this.addLog("Configuration saved successfully", "success");
+              this.addLog("Ready for 3-stage AI processing pipeline", "info");
               this.validateForm();
             } else {
               this.addLog(`Configuration error: ${result.error}`, "error");
@@ -817,7 +850,7 @@
             });
 
             this.addLog(
-              `Creating batch with ${this.files.length} files...`,
+              `Creating batch with ${this.files.length} files for 3-stage validation...`,
               "info"
             );
 
@@ -839,6 +872,10 @@
             if (result.success) {
               this.currentBatchId = result.data.batchId;
               this.addLog(`Batch created: ${this.currentBatchId}`, "success");
+              this.addLog(
+                "Pipeline: Extract → Score → Validate (Gemini + Anthropic)",
+                "info"
+              );
               this.showProgressSection();
               this.updateMetrics(result.data);
             } else {
@@ -875,7 +912,11 @@
             const result = await response.json();
 
             if (result.success) {
-              this.addLog("Batch processing started", "success");
+              this.addLog(
+                "🚀 Starting 3-stage AI validation pipeline",
+                "success"
+              );
+              this.addLog("Stage 1: LlamaIndex extraction...", "info");
               this.startTime = Date.now();
               this.updateControlButtons("running");
               this.startProgressPolling();
@@ -886,7 +927,6 @@
             this.addLog(`Start error: ${error.message}`, "error");
           }
         }
-
         async pauseBatch() {
           await this.sendBatchCommand("pause", "paused");
         }
@@ -1020,6 +1060,36 @@
           document.getElementById("extracting").textContent =
             metrics.extracting;
           document.getElementById("scoring").textContent = metrics.scoring;
+          document.getElementById("validating").textContent =
+            metrics.validating;
+
+          // Update validation metrics
+          document.getElementById("geminiAgreement").textContent =
+            metrics.validation && metrics.validation.totalValidated > 0
+              ? `${Math.round(
+                  (metrics.validation.geminiAgreement /
+                    metrics.validation.totalValidated) *
+                    100
+                )}%`
+              : "0%";
+
+          document.getElementById("anthropicAgreement").textContent =
+            metrics.validation && metrics.validation.totalValidated > 0
+              ? `${Math.round(
+                  (metrics.validation.anthropicAgreement /
+                    metrics.validation.totalValidated) *
+                    100
+                )}%`
+              : "0%";
+
+          document.getElementById("consensusRate").textContent =
+            metrics.validation && metrics.validation.totalValidated > 0
+              ? `${Math.round(
+                  (metrics.validation.consensusAgreement /
+                    metrics.validation.totalValidated) *
+                    100
+                )}%`
+              : "0%";
 
           // Update progress bars
           const overallPercent =
@@ -1062,7 +1132,9 @@
           ).textContent = `${metrics.memory.usedMB}MB`;
 
           const avgTime =
-            metrics.timing.avgExtractionMs + metrics.timing.avgScoringMs;
+            metrics.timing.avgExtractionMs +
+            metrics.timing.avgScoringMs +
+            metrics.timing.avgValidationMs;
           document.getElementById(
             "avgProcessingTime"
           ).textContent = `${Math.round(avgTime / 1000)}s`;
@@ -1076,10 +1148,46 @@
             (data.metrics.completed / data.metrics.total) *
             100
           ).toFixed(1);
+
+          // Calculate validation insights
+          const validation = data.metrics.validation;
+          const geminiAgreementRate =
+            validation && validation.totalValidated > 0
+              ? (
+                  (validation.geminiAgreement / validation.totalValidated) *
+                  100
+                ).toFixed(1)
+              : "0.0";
+          const anthropicAgreementRate =
+            validation && validation.totalValidated > 0
+              ? (
+                  (validation.anthropicAgreement / validation.totalValidated) *
+                  100
+                ).toFixed(1)
+              : "0.0";
+          const consensusRate =
+            validation && validation.totalValidated > 0
+              ? (
+                  (validation.consensusAgreement / validation.totalValidated) *
+                  100
+                ).toFixed(1)
+              : "0.0";
+
           this.addLog(
             `🎉 Batch completed! ${data.metrics.completed}/${data.metrics.total} successful (${successRate}%)`,
             "success"
           );
+          this.addLog(
+            `🤖 AI Validation Results: Gemini ${geminiAgreementRate}% | Anthropic ${anthropicAgreementRate}% | Consensus ${consensusRate}%`,
+            "info"
+          );
+
+          if (parseFloat(consensusRate) < 70) {
+            this.addLog(
+              `⚠️ Low AI consensus detected - review validation results for scoring discrepancies`,
+              "warning"
+            );
+          }
 
           document.getElementById("resultsSection").style.display = "block";
           document
@@ -1105,13 +1213,22 @@
               const url = window.URL.createObjectURL(blob);
               const link = document.createElement("a");
               link.href = url;
-              link.download = `batch-${this.currentBatchId}-${type}.${
-                type === "report" ? "json" : "zip"
-              }`;
+
+              let extension = "zip";
+              if (type === "report") extension = "json";
+
+              link.download = `batch-${this.currentBatchId}-${type}.${extension}`;
               link.click();
               window.URL.revokeObjectURL(url);
 
               this.addLog(`${type} downloaded successfully`, "success");
+
+              if (type === "validations") {
+                this.addLog(
+                  "📊 Validation files contain Gemini & Anthropic insights",
+                  "info"
+                );
+              }
             } else {
               const error = await response.json();
               this.addLog(`Download failed: ${error.error}`, "error");
