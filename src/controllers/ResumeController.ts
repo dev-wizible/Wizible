@@ -1,18 +1,21 @@
-// src/controllers/ResumeController.ts
+// src/controllers/ResumeController.ts - UPDATED with Google Sheets health check
 import { Request, Response } from 'express';
 import { BulkResumeProcessor } from '../services/BulkResumeProcessor';
+import { GoogleSheetsLogger } from '../services/GoogleSheetsLogger';
 import { JobConfig } from '../types';
 import fs from 'fs';
 import path from 'path';
 import archiver from 'archiver';
-import { serverConfig } from '../config';
+import { serverConfig, apiConfig } from '../config';
 
 export class ResumeController {
   private processor: BulkResumeProcessor;
+  private sheetsLogger: GoogleSheetsLogger;
   private jobConfig: JobConfig | null = null;
 
   constructor() {
     this.processor = new BulkResumeProcessor();
+    this.sheetsLogger = new GoogleSheetsLogger();
     this.initializeProcessor();
   }
 
@@ -128,7 +131,8 @@ export class ResumeController {
           batchId,
           totalFiles: pdfFiles.length,
           status: 'created',
-          pipeline: 'Extract → Score → Validate (Gemini + Anthropic)'
+          pipeline: 'Extract → Score → Validate (Gemini + Anthropic)',
+          googleSheetsLogging: apiConfig.googleSheets.enabled
         },
         timestamp: new Date().toISOString()
       });
@@ -156,7 +160,8 @@ export class ResumeController {
           batchId,
           status: 'started',
           message: 'Batch processing started with 3-stage pipeline (Extract → Score → Validate)',
-          services: ['LlamaIndex', 'OpenAI', 'Gemini', 'Anthropic']
+          services: ['LlamaIndex', 'OpenAI', 'Gemini', 'Anthropic'],
+          googleSheetsLogging: apiConfig.googleSheets.enabled
         },
         timestamp: new Date().toISOString()
       });
@@ -559,7 +564,7 @@ export class ResumeController {
     }
   };
 
-  // Get system health and statistics (UPDATED with validation metrics)
+  // Get system health and statistics (UPDATED with Google Sheets status)
   getSystemHealth = async (req: Request, res: Response): Promise<void> => {
     try {
       const batches = this.processor.getAllBatches();
@@ -570,6 +575,17 @@ export class ResumeController {
       const totalGeminiAgreements = completedBatches.reduce((sum, b) => sum + b.metrics.validation.geminiAgreement, 0);
       const totalAnthropicAgreements = completedBatches.reduce((sum, b) => sum + b.metrics.validation.anthropicAgreement, 0);
       const totalConsensus = completedBatches.reduce((sum, b) => sum + b.metrics.validation.consensusAgreement, 0);
+      
+      // Test Google Sheets connection
+      let googleSheetsStatus = 'disabled';
+      if (apiConfig.googleSheets.enabled) {
+        try {
+          const isConnected = await this.sheetsLogger.testConnection();
+          googleSheetsStatus = isConnected ? 'connected' : 'error';
+        } catch (error) {
+          googleSheetsStatus = 'error';
+        }
+      }
       
       const stats = {
         system: {
@@ -600,13 +616,19 @@ export class ResumeController {
           consensusRate: totalValidated > 0 ? (totalConsensus / totalValidated * 100).toFixed(1) + '%' : '0%',
           services: ['Gemini 1.5 Pro', 'Claude 3.5 Sonnet']
         },
+        googleSheets: {
+          enabled: apiConfig.googleSheets.enabled,
+          status: googleSheetsStatus,
+          sheetId: apiConfig.googleSheets.enabled ? 
+            apiConfig.googleSheets.sheetId.substring(0, 8) + '...' : null
+        },
         configuration: {
           hasJobConfig: !!this.jobConfig,
           concurrentExtractions: 4,
           concurrentScoring: 3,
           concurrentValidations: 4,
           maxMemoryMB: 2048,
-          pipeline: 'Extract → Score → Validate (Gemini + Anthropic)'
+          pipeline: 'Extract → Score → Validate (Gemini + Anthropic) → Log to Sheets'
         }
       };
 

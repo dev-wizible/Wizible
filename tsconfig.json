@@ -27,7 +27,7 @@
   },
   "include": [
     "src/**/*"
-  ],
+, "get-refresh-token.js"  ],
   "exclude": [
     "node_modules",
     "dist",
