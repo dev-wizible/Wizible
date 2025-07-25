@@ -1,4 +1,4 @@
-// src/services/GoogleSheetsLogger.ts - Custom structure matching your Excel template
+// src/services/GoogleSheetsLogger.ts - Updated for new evaluation structure
 import { google } from 'googleapis';
 import { ResumeFile } from '../types';
 
@@ -8,54 +8,57 @@ export class GoogleSheetsLogger {
   private sheetId: string;
   private initialized = false;
 
-  // Define the exact structure from your Excel template
+  // Define the exact structure for the new evaluation criteria
   private readonly SHEET_STRUCTURE = {
-    // Row 1: Category headers (merged cells)
+    // Row 1: Category headers
     categoryHeaders: [
       '', '', '', // A1:C1 empty
-      'Leadership of Product Managers', '', // D1:E1
-      'Strategy Ownership', '', // F1:G1
-      'Full Product Lifecycle Management', '', // H1:I1
-      'KPI Accountability', // J1
-      'Research & Validation Skills', // K1 (Note: your template shows L1, but seems to be K1)
-      'Collaboration with Design', // L1
-      'Collaboration with Engineering', // M1
-      'Data-Driven Decision-Making', // N1
-      'Gamification/Product Engagement Features', // O1
-      'Mission Alignment', // P1
-      'Consumer Product Management Experience', // Q1
-      'Simplicity & UX Instinct', // R1
-      'Learning Agility', // S1
-      'Resourcefulness & Innovation', // T1
-      'Education Background', // U1
-      'Advanced Degree (Bonus)', // V1
-      'Related Professional Experience (Bonus)', // W1
-      'Total Score' // X1
+      'JD-Specific Criteria', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', // D1:T1 (17 criteria)
+      'General Criteria', '', '', '', '', '', // U1:Z1 (6 criteria)
+      'Validation Results', '', '', // AA1:AC1
+      'Total Score' // AD1
     ],
 
-    // Row 2: Column headers
+    // Row 2: Column headers with all criteria
     columnHeaders: [
       'Candidate Name', // A2
-      'Candidate Original Resume Link', // B2
+      'Candidate Resume Link', // B2
       'Candidate Resume JSON', // C2
-      'score', 'reasoning', // D2:E2 - Leadership of Product Managers
-      'score', 'reasoning', // F2:G2 - Strategy Ownership
-      'score', 'reasoning', // H2:I2 - Full Product Lifecycle Management
-      'score', 'reasoning', // J2:K2 - KPI Accountability
-      'score', 'reasoning', // L2:M2 - Research & Validation Skills
-      'score', 'reasoning', // N2:O2 - Collaboration with Design
-      'score', 'reasoning', // P2:Q2 - Collaboration with Engineering
-      'score', 'reasoning', // R2:S2 - Data-Driven Decision-Making
-      'score', 'reasoning', // T2:U2 - Gamification/Product Engagement Features
-      'score', 'reasoning', // V2:W2 - Mission Alignment
-      'score', 'reasoning', // X2:Y2 - Consumer Product Management Experience
-      'score', 'reasoning', // Z2:AA2 - Simplicity & UX Instinct
-      'score', 'reasoning', // AB2:AC2 - Learning Agility
-      'score', 'reasoning', // AD2:AE2 - Resourcefulness & Innovation
-      'score', 'reasoning', // AF2:AG2 - Education Background
-      'score', 'reasoning', // AH2:AI2 - Advanced Degree (Bonus)
-      'score', 'reasoning', // AJ2:AK2 - Related Professional Experience (Bonus)
-      'Total Score' // AL2
+      
+      // JD-Specific Criteria (17 columns: D2-T2)
+      'Leadership of Product Managers',
+      'Strategy Ownership', 
+      'Full Product Lifecycle Management',
+      'KPI Accountability',
+      'Research & Validation Skills',
+      'Collaboration with Design',
+      'Collaboration with Engineering',
+      'Data-Driven Decision-Making',
+      'Gamification/Product Engagement Features',
+      'Mission Alignment',
+      'Consumer Product Management Experience',
+      'Simplicity & UX Instinct',
+      'Learning Agility',
+      'Resourcefulness & Innovation',
+      'Education Background',
+      'Advanced Degree (Bonus)',
+      'Related Professional Experience (Bonus)',
+      
+      // General Criteria (6 columns: U2-Z2)
+      'Career Growth Speed',
+      'Learning Agility (Problems)',
+      'Brand Pedigree',
+      'Impact Magnitude',
+      'Complexity & Scale',
+      'Communication Clarity',
+      
+      // Validation Results (3 columns: AA2-AC2)
+      'Gemini Validation',
+      'Anthropic Validation',
+      'Consensus',
+      
+      // Total Score (1 column: AD2)
+      'Total Score'
     ]
   };
 
@@ -90,7 +93,7 @@ export class GoogleSheetsLogger {
       await this.setupSheetStructure();
 
       this.initialized = true;
-      console.log('✅ Google Sheets Logger initialized with custom structure');
+      console.log('✅ Google Sheets Logger initialized with new evaluation structure');
     } catch (error) {
       console.error('❌ Failed to initialize Google Sheets Logger:', error);
     }
@@ -101,7 +104,7 @@ export class GoogleSheetsLogger {
       // Check if structure already exists
       const response = await this.sheets.spreadsheets.values.get({
         spreadsheetId: this.sheetId,
-        range: 'A1:AL2',
+        range: 'A1:AD2',
       });
 
       if (!response.data.values || response.data.values.length < 2) {
@@ -121,27 +124,13 @@ export class GoogleSheetsLogger {
         range: 'A1:ZZ1000',
       });
 
-      // Add category headers (Row 1) - with proper spacing for merged cells
+      // Add category headers (Row 1)
       const categoryRow = [
         '', '', '', // A1:C1
-        'Leadership of Product Managers', '', // D1:E1
-        'Strategy Ownership', '', // F1:G1
-        'Full Product Lifecycle Management', '', // H1:I1
-        'KPI Accountability', '', // J1:K1
-        'Research & Validation Skills', '', // L1:M1
-        'Collaboration with Design', '', // N1:O1
-        'Collaboration with Engineering', '', // P1:Q1
-        'Data-Driven Decision-Making', '', // R1:S1
-        'Gamification/Product Engagement Features', '', // T1:U1
-        'Mission Alignment', '', // V1:W1
-        'Consumer Product Management Experience', '', // X1:Y1
-        'Simplicity & UX Instinct', '', // Z1:AA1
-        'Learning Agility', '', // AB1:AC1
-        'Resourcefulness & Innovation', '', // AD1:AE1
-        'Education Background', '', // AF1:AG1
-        'Advanced Degree (Bonus)', '', // AH1:AI1
-        'Related Professional Experience (Bonus)', '', // AJ1:AK1
-        'Total Score' // AL1
+        'JD-Specific Criteria', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', // D1:T1 (17 criteria)
+        'General Criteria', '', '', '', '', '', // U1:Z1 (6 criteria)
+        'Validation Results', '', '', // AA1:AC1
+        'Total Score' // AD1
       ];
 
       // Add column headers (Row 2)
@@ -150,7 +139,7 @@ export class GoogleSheetsLogger {
       // Update both rows
       await this.sheets.spreadsheets.values.update({
         spreadsheetId: this.sheetId,
-        range: 'A1:AL2',
+        range: 'A1:AD2',
         valueInputOption: 'RAW',
         requestBody: {
           values: [categoryRow, columnRow],
@@ -160,7 +149,7 @@ export class GoogleSheetsLogger {
       // Format the headers
       await this.formatHeaders();
 
-      console.log('📝 Created custom sheet structure matching your template');
+      console.log('📝 Created new evaluation structure sheet');
     } catch (error) {
       console.error('❌ Failed to create sheet structure:', error);
     }
@@ -177,7 +166,7 @@ export class GoogleSheetsLogger {
               startRowIndex: 0,
               endRowIndex: 1,
               startColumnIndex: 0,
-              endColumnIndex: 38, // AL column
+              endColumnIndex: 30, // AD column
             },
             cell: {
               userEnteredFormat: {
@@ -201,7 +190,7 @@ export class GoogleSheetsLogger {
               startRowIndex: 1,
               endRowIndex: 2,
               startColumnIndex: 0,
-              endColumnIndex: 38, // AL column
+              endColumnIndex: 30, // AD column
             },
             cell: {
               userEnteredFormat: {
@@ -242,7 +231,7 @@ export class GoogleSheetsLogger {
         return;
       }
 
-      // Map your OpenAI scores to the template structure
+      // Map your scores to the template structure
       const rowData = this.mapScoresToRowData(file, scores, validation);
 
       // Find or create row for this candidate
@@ -251,7 +240,7 @@ export class GoogleSheetsLogger {
       // Update the row
       await this.sheets.spreadsheets.values.update({
         spreadsheetId: this.sheetId,
-        range: `A${rowIndex}:AL${rowIndex}`,
+        range: `A${rowIndex}:AD${rowIndex}`,
         valueInputOption: 'RAW',
         requestBody: {
           values: [rowData],
@@ -265,135 +254,83 @@ export class GoogleSheetsLogger {
   }
 
   private mapScoresToRowData(file: ResumeFile, scores: any, validation: any): any[] {
-    const evaluation = scores.Evaluation || {};
+    const evaluation = scores.candidate_evaluation || {};
     
-    // Calculate individual scores based on your OpenAI evaluation structure
-    const leadership = this.extractScore(evaluation, 'LeadershipAndCollaboration');
-    const strategy = this.extractScore(evaluation, 'DomainMatch');
-    const lifecycle = this.extractScore(evaluation, 'ScaleAndComplexity');
-    const kpi = this.extractScore(evaluation, 'TalentMarkers');
-    const research = this.extractScore(evaluation, 'CommunicationAndClarity');
-    const design = this.extractScore(evaluation, 'PedigreeAndGrowth');
-    const engineering = leadership; // Use similar scoring
-    const datadriven = research; // Use similar scoring
-    const gamification = kpi; // Use similar scoring
-    const mission = strategy; // Use similar scoring
-    const consumer = lifecycle; // Use similar scoring
-    const simplicity = design; // Use similar scoring
-    const learning = this.extractScore(evaluation, 'TalentMarkers');
-    const innovation = learning; // Use similar scoring
-    const education = this.extractScore(evaluation, 'PedigreeAndGrowth');
-    const advancedDegree = education; // Bonus scoring
-    const experience = this.extractScore(evaluation, 'ScaleAndComplexity');
+    // Extract JD-Specific Criteria scores (17 items)
+    const jdCriteria = evaluation.JD_Specific_Criteria || [];
+    const jdScores = this.extractCriteriaScores(jdCriteria, [
+      'Leadership of Product Managers',
+      'Strategy Ownership',
+      'Full Product Lifecycle Management',
+      'KPI Accountability',
+      'Research & Validation Skills',
+      'Collaboration with Design',
+      'Collaboration with Engineering',
+      'Data-Driven Decision-Making',
+      'Gamification/Product Engagement Features',
+      'Mission Alignment',
+      'Consumer Product Management Experience',
+      'Simplicity & UX Instinct',
+      'Learning Agility',
+      'Resourcefulness & Innovation',
+      'Education Background',
+      'Advanced Degree (Bonus)',
+      'Related Professional Experience (Bonus)'
+    ]);
 
-    const totalScore = evaluation.TotalScore || 0;
+    // Extract General Criteria scores (6 items)
+    const generalCriteria = evaluation.General_Criteria || [];
+    const generalScores = this.extractCriteriaScores(generalCriteria, [
+      'Career Growth Speed (progression vs peers)',
+      'Learning Agility (nature and diversity of problems solved)',
+      'Brand Pedigree (companies worked for)',
+      'Impact Magnitude (public evidence like press coverage is a plus)',
+      'Complexity & Scale of Problems Tackled',
+      'Clarity of Communication (how clearly the resume conveys accomplishments)'
+    ]);
+
+    // Validation results
+    const geminiVerdict = validation?.gemini?.verdict || 'N/A';
+    const anthropicVerdict = validation?.anthropic?.verdict || 'N/A';
+    const consensus = (geminiVerdict === anthropicVerdict && geminiVerdict !== 'N/A') ? 'Yes' : 'No';
+
+    const totalScore = evaluation.total_score || 0;
 
     return [
       file.originalFile.originalname, // A - Candidate Name
       'Resume uploaded via system', // B - Resume Link
       JSON.stringify(file.results.extraction || {}).substring(0, 100) + '...', // C - Resume JSON (truncated)
       
-      // Leadership of Product Managers
-      leadership.score, leadership.reasoning,
+      // JD-Specific Criteria (D-T)
+      ...jdScores,
       
-      // Strategy Ownership
-      strategy.score, strategy.reasoning,
+      // General Criteria (U-Z)
+      ...generalScores,
       
-      // Full Product Lifecycle Management
-      lifecycle.score, lifecycle.reasoning,
+      // Validation Results (AA-AC)
+      geminiVerdict,
+      anthropicVerdict,
+      consensus,
       
-      // KPI Accountability
-      kpi.score, kpi.reasoning,
-      
-      // Research & Validation Skills
-      research.score, research.reasoning,
-      
-      // Collaboration with Design
-      design.score, design.reasoning,
-      
-      // Collaboration with Engineering
-      engineering.score, engineering.reasoning,
-      
-      // Data-Driven Decision-Making
-      datadriven.score, datadriven.reasoning,
-      
-      // Gamification/Product Engagement Features
-      gamification.score, gamification.reasoning,
-      
-      // Mission Alignment
-      mission.score, mission.reasoning,
-      
-      // Consumer Product Management Experience
-      consumer.score, consumer.reasoning,
-      
-      // Simplicity & UX Instinct
-      simplicity.score, simplicity.reasoning,
-      
-      // Learning Agility
-      learning.score, learning.reasoning,
-      
-      // Resourcefulness & Innovation
-      innovation.score, innovation.reasoning,
-      
-      // Education Background
-      education.score, education.reasoning,
-      
-      // Advanced Degree (Bonus)
-      advancedDegree.score, advancedDegree.reasoning,
-      
-      // Related Professional Experience (Bonus)
-      experience.score, experience.reasoning,
-      
-      // Total Score
+      // Total Score (AD)
       totalScore
     ];
   }
 
-  private extractScore(evaluation: any, category: string): { score: number; reasoning: string } {
-    const categoryData = evaluation[category];
+  private extractCriteriaScores(criteria: any[], expectedCriteria: string[]): number[] {
+    const scores: number[] = [];
     
-    if (!categoryData) {
-      return { score: 0, reasoning: 'No data available' };
+    for (const expected of expectedCriteria) {
+      const found = criteria.find(c => 
+        c.criterion === expected || 
+        c.criterion.includes(expected.split('(')[0].trim()) ||
+        expected.includes(c.criterion.split('(')[0].trim())
+      );
+      
+      scores.push(found ? found.score : 0);
     }
-
-    // Extract score and reasoning based on your evaluation structure
-    let score = 0;
-    let reasoning = 'No reasoning provided';
-
-    if (typeof categoryData === 'object') {
-      // Handle different score types in your evaluation
-      if (categoryData.Score !== undefined) {
-        if (typeof categoryData.Score === 'number') {
-          score = Math.round(categoryData.Score * 10); // Convert 1-10 to 1-100 scale
-        } else if (categoryData.Score === 'Strong') {
-          score = 9;
-        } else if (categoryData.Score === 'Medium') {
-          score = 6;
-        } else if (categoryData.Score === 'Weak') {
-          score = 3;
-        } else if (categoryData.Score === 'High') {
-          score = 8;
-        } else if (categoryData.Score === 'Low') {
-          score = 4;
-        }
-      }
-
-      reasoning = categoryData.Explanation || categoryData.reason || 'Extracted from evaluation';
-    } else if (typeof categoryData === 'string') {
-      // Handle string-based scores
-      if (categoryData === 'Strong') score = 9;
-      else if (categoryData === 'Medium') score = 6;
-      else if (categoryData === 'Weak') score = 3;
-      reasoning = `Assessment: ${categoryData}`;
-    }
-
-    // Ensure score is in 1-10 range for the template
-    score = Math.max(1, Math.min(10, score || 5));
-
-    return {
-      score,
-      reasoning: reasoning.substring(0, 200) // Limit reasoning length
-    };
+    
+    return scores;
   }
 
   private async findOrCreateCandidateRow(candidateName: string): Promise<number> {
@@ -423,12 +360,10 @@ export class GoogleSheetsLogger {
 
   // Keep the simple methods for backward compatibility
   async logExtractionResult(file: ResumeFile): Promise<void> {
-    // This will be called during extraction, but we'll do the full logging at the end
     console.log(`📝 Extraction completed for: ${file.originalFile.originalname}`);
   }
 
   async logScoringResult(file: ResumeFile): Promise<void> {
-    // This will be called during scoring, but we'll do the full logging at the end
     console.log(`🤖 Scoring completed for: ${file.originalFile.originalname}`);
   }
 

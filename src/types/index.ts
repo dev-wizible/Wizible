@@ -1,4 +1,4 @@
-// src/types/index.ts
+// src/types/index.ts - Updated with new scoring structure
 
 export interface ResumeFile {
   id: string;
@@ -78,55 +78,22 @@ export interface BatchMetrics {
   };
 }
 
+// Updated ResumeScores interface to match new structure
+export interface CriterionScore {
+  criterion: string;
+  score: number;
+  reasoning: string;
+}
+
 export interface ResumeScores {
-  Evaluation: {
-    DomainMatch: {
-      CompanyDomainMatch: { Score: string; Explanation: string; };
-      WorkDomainMatch: { Score: string; Explanation: string; };
-    };
-    ScaleAndComplexity: {
-      CompanyScaleExperience: {
-        CompanyScales: Array<{
-          Company: string;
-          EmployeeScale: string;
-          UserScale: string;
-          RevenueScale: string;
-        }>;
-        OverallScaleMatch: string;
-        Explanation: string;
-      };
-      ComplexityScore: { Score: number; Explanation: string; };
-    };
-    LeadershipAndCollaboration: {
-      StakeholderComplexity: { Score: string; Explanation: string; };
-      TeamLeadership: { Score: number; Explanation: string; };
-      CrossFunctional: { Score: number; Explanation: string; };
-    };
-    PedigreeAndGrowth: {
-      CompanyPedigree: { Score: number; Explanation: string; };
-      CollegePedigree: { Score: number; Explanation: string; };
-      PromotionVelocity: {
-        PerCompany: Array<{
-          Company: string;
-          Velocity: string;
-          Explanation: string;
-        }>;
-      };
-    };
-    TalentMarkers: {
-      AdaptabilityAndLearning: string;
-      BreadthOfWork: string;
-      OwnershipMindset: string;
-      ResilienceAndGrit: string;
-    };
-    CommunicationAndClarity: { Score: number; Explanation: string; };
-    TotalScore: number;
-    OverallCandidateSummary: string;
-    FinalRecommendation: string;
+  candidate_evaluation: {
+    JD_Specific_Criteria: CriterionScore[];
+    General_Criteria: CriterionScore[];
+    total_score: number;
   };
 }
 
-// NEW: Validation types for Stage 4
+// Validation types for Stage 4
 export interface ValidationRequest {
   resumeData: any;
   jobDescription: string;

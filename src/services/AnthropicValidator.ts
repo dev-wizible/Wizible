@@ -1,4 +1,4 @@
-// src/services/AnthropicValidator.ts
+// src/services/AnthropicValidator.ts - Updated for new scoring structure
 import Anthropic from '@anthropic-ai/sdk';
 import { apiConfig, config } from '../config';
 import { ValidationRequest, ValidationResponse } from '../types';
@@ -39,12 +39,6 @@ export class AnthropicValidator {
           throw new Error('No text response from Anthropic');
         }
 
-        // Debug: Log the exact response
-        console.log(`Debug - Raw Anthropic response for ${resumeFilename}:`);
-        console.log('Response length:', content.text.length);
-        console.log('Response bytes:', Buffer.from(content.text, 'utf8'));
-        console.log('Response:', JSON.stringify(content.text));
-
         const validation = this.parseValidationResponse(content.text);
         this.validateResponse(validation);
         
@@ -71,13 +65,21 @@ export class AnthropicValidator {
     openaiScore: any
   ): string {
     // Truncate to reduce token usage
-    const truncatedResume = JSON.stringify(resumeData).substring(0, 2000);
-    const truncatedJD = jobDescription.substring(0, 800);
-    const truncatedRubric = evaluationRubric.substring(0, 800);
-    const score = openaiScore.Evaluation?.TotalScore || 0;
+    const truncatedResume = JSON.stringify(resumeData).substring(0, 1500);
+    const truncatedJD = jobDescription.substring(0, 600);
+    const truncatedRubric = evaluationRubric.substring(0, 600);
+    const totalScore = openaiScore.candidate_evaluation?.total_score || 0;
     
-    return `
-Validate this OpenAI resume score. Respond with clean JSON only.
+    // Extract a few key criteria scores for validation context
+    const jdCriteria = openaiScore.candidate_evaluation?.JD_Specific_Criteria || [];
+    const generalCriteria = openaiScore.candidate_evaluation?.General_Criteria || [];
+    
+    const sampleScores = [
+      ...jdCriteria.slice(0, 3),
+      ...generalCriteria.slice(0, 2)
+    ].map(c => `${c.criterion}: ${c.score}/10`).join(', ');
+    
+    return `Validate this OpenAI resume evaluation. Respond with clean JSON only.
 
 JOB DESCRIPTION: ${truncatedJD}
 
@@ -85,11 +87,15 @@ EVALUATION RUBRIC: ${truncatedRubric}
 
 RESUME DATA: ${truncatedResume}
 
-OPENAI SCORE: ${score}/100
+OPENAI EVALUATION:
+- Total Score: ${totalScore}/230 (23 criteria, each 1-10)
+- Sample Scores: ${sampleScores}
+
+Assess if the scoring is reasonable given the resume content and job requirements.
 
 Respond with ONLY this JSON format (no explanations, no markdown):
 
-{"verdict":"Valid","reason":"Brief explanation","recommendedScore":{"skillsScore":${score},"experienceScore":${score},"overallScore":${score}},"confidence":7}`.trim();
+{"verdict":"Valid","reason":"Brief explanation","recommendedScore":{"skillsScore":85,"experienceScore":90,"overallScore":87},"confidence":8}`.trim();
   }
 
   private parseValidationResponse(content: string): ValidationResponse {
@@ -107,9 +113,6 @@ Respond with ONLY this JSON format (no explanations, no markdown):
       .replace(/[^\x20-\x7E]/g, '') // Remove all non-printable ASCII characters
       .trim();
 
-    console.log('Cleaned JSON string:', JSON.stringify(cleanedJsonStr));
-    console.log('Cleaned JSON bytes:', Buffer.from(cleanedJsonStr, 'utf8'));
-
     try {
       return JSON.parse(cleanedJsonStr);
     } catch (error) {
@@ -117,16 +120,6 @@ Respond with ONLY this JSON format (no explanations, no markdown):
       console.error('Original JSON string:', JSON.stringify(jsonStr));
       console.error('Cleaned JSON string:', JSON.stringify(cleanedJsonStr));
       
-      // Try character by character analysis
-      console.error('Character analysis:');
-      for (let i = 0; i < cleanedJsonStr.length; i++) {
-        const char = cleanedJsonStr[i];
-        const code = char.charCodeAt(0);
-        if (code < 32 || code > 126) {
-          console.error(`Suspicious character at position ${i}: "${char}" (code: ${code})`);
-        }
-      }
-
       throw new Error(`JSON parsing failed: ${(error as Error).message}`);
     }
   }

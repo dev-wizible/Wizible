@@ -1,4 +1,4 @@
-// src/services/GeminiValidator.ts
+// src/services/GeminiValidator.ts - Updated for new scoring structure
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { apiConfig, config } from '../config';
 import { ValidationRequest, ValidationResponse } from '../types';
@@ -16,7 +16,7 @@ export class GeminiValidator {
         temperature: 0.1,
         topK: 1,
         topP: 0.8,
-        maxOutputTokens: 300,
+        maxOutputTokens: 500,
       }
     });
   }
@@ -85,13 +85,14 @@ export class GeminiValidator {
     openaiScore: any
   ): string {
     // Truncate to reduce token usage
-    const truncatedResume = JSON.stringify(resumeData).substring(0, 2000);
-    const truncatedJD = jobDescription.substring(0, 800);
-    const truncatedRubric = evaluationRubric.substring(0, 800);
-    const score = openaiScore.Evaluation?.TotalScore || 0;
+    const truncatedResume = JSON.stringify(resumeData).substring(0, 1500);
+    const truncatedJD = jobDescription.substring(0, 600);
+    const truncatedRubric = evaluationRubric.substring(0, 600);
+    const totalScore = openaiScore.candidate_evaluation?.total_score || 0;
+    const jdCriteriaCount = openaiScore.candidate_evaluation?.JD_Specific_Criteria?.length || 0;
+    const generalCriteriaCount = openaiScore.candidate_evaluation?.General_Criteria?.length || 0;
     
-    return `
-Validate this OpenAI resume score. Respond with valid JSON only.
+    return `Validate this OpenAI resume evaluation. Respond with valid JSON only.
 
 **JOB:** ${truncatedJD}
 
@@ -99,12 +100,17 @@ Validate this OpenAI resume score. Respond with valid JSON only.
 
 **RESUME:** ${truncatedResume}
 
-**OPENAI SCORE:** ${score}/100
+**OPENAI EVALUATION:**
+- Total Score: ${totalScore}/230
+- JD-Specific Criteria: ${jdCriteriaCount} items
+- General Criteria: ${generalCriteriaCount} items
+
+Review the scoring against the job requirements and evaluation criteria.
 
 **RESPOND WITH VALID JSON ONLY:**
 {
   "verdict": "Valid",
-  "reason": "Brief explanation",
+  "reason": "Brief explanation of validation decision",
   "recommendedScore": {
     "skillsScore": 85,
     "experienceScore": 90,
@@ -128,7 +134,7 @@ Validate this OpenAI resume score. Respond with valid JSON only.
     } catch (error) {
       console.error('Failed to parse Gemini JSON:', error);
       console.error('Raw JSON string:', jsonStr);
-      throw new Error(`JSON parsing failed: ${(error as Error)  .message}`);
+      throw new Error(`JSON parsing failed: ${(error as Error).message}`);
     }
   }
 

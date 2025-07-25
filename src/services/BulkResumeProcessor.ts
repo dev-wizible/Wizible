@@ -380,15 +380,15 @@ export class BulkResumeProcessor extends EventEmitter {
         fileId: file.id,
         data: {
           filename: file.originalFile.originalname,
-          score: scores.Evaluation?.TotalScore || 0,
+          score: scores.candidate_evaluation?.total_score || 0,
         },
         timestamp: new Date(),
       });
 
       console.log(
         `🎯 Scored: ${file.originalFile.originalname} (${
-          scores.Evaluation?.TotalScore || 0
-        }/100)`
+          scores.candidate_evaluation?.total_score || 0
+        }/230)`
       );
     } catch (error) {
       console.error(
@@ -479,10 +479,10 @@ export class BulkResumeProcessor extends EventEmitter {
       // Save validation results
       await this.saveValidationResult(file);
 
-      // UPDATED: Log complete data to Google Sheets in your custom format
+      // Log complete data to Google Sheets
       if (process.env.GOOGLE_SHEETS_ENABLED === "true") {
         try {
-          await this.sheetsLogger.logValidationResult(file); // This now logs everything in your format
+          await this.sheetsLogger.logValidationResult(file);
         } catch (error) {
           console.warn(
             `⚠️ Failed to log to Google Sheets for ${file.originalFile.originalname}:`,
@@ -514,7 +514,8 @@ export class BulkResumeProcessor extends EventEmitter {
           filename: file.originalFile.originalname,
           geminiVerdict: validation.gemini?.verdict,
           anthropicVerdict: validation.anthropic?.verdict,
-          originalScore: file.results.scores.Evaluation?.TotalScore || 0,
+          originalScore:
+            file.results.scores.candidate_evaluation?.total_score || 0,
         },
         timestamp: new Date(),
       });
@@ -816,6 +817,17 @@ export class BulkResumeProcessor extends EventEmitter {
         timestamp: new Date().toISOString(),
         processingTime: file.progress.totalDuration,
         scores: file.results.scores,
+        summary: {
+          totalScore:
+            file.results.scores?.candidate_evaluation?.total_score || 0,
+          maxScore: 230,
+          jdCriteriaCount:
+            file.results.scores?.candidate_evaluation?.JD_Specific_Criteria
+              ?.length || 0,
+          generalCriteriaCount:
+            file.results.scores?.candidate_evaluation?.General_Criteria
+              ?.length || 0,
+        },
       };
 
       fs.writeFileSync(filePath, JSON.stringify(scoreData, null, 2));
@@ -845,7 +857,8 @@ export class BulkResumeProcessor extends EventEmitter {
         filename: file.originalFile.originalname,
         timestamp: new Date().toISOString(),
         processingTime: file.progress.totalDuration,
-        originalScore: file.results.scores?.Evaluation?.TotalScore || 0,
+        originalScore:
+          file.results.scores?.candidate_evaluation?.total_score || 0,
         validation: file.results.validation,
       };
 
@@ -884,6 +897,13 @@ export class BulkResumeProcessor extends EventEmitter {
 
       const report = {
         batchId: batch.id,
+        evaluationStructure: {
+          jdSpecificCriteria: 17,
+          generalCriteria: 6,
+          totalCriteria: 23,
+          maxScore: 230,
+          scoringScale: "1-10 per criterion",
+        },
         summary: {
           totalFiles: batch.metrics.total,
           completed: batch.metrics.completed,
@@ -927,7 +947,14 @@ export class BulkResumeProcessor extends EventEmitter {
         files: batch.files.map((file) => ({
           filename: file.originalFile.originalname,
           status: file.status,
-          openaiScore: file.results.scores?.Evaluation?.TotalScore || null,
+          totalScore:
+            file.results.scores?.candidate_evaluation?.total_score || null,
+          jdCriteriaScores:
+            file.results.scores?.candidate_evaluation?.JD_Specific_Criteria
+              ?.length || 0,
+          generalCriteriaScores:
+            file.results.scores?.candidate_evaluation?.General_Criteria
+              ?.length || 0,
           validation: file.results.validation
             ? {
                 gemini: {
