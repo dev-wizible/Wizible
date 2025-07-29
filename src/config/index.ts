@@ -1,4 +1,4 @@
-// src/config/index.ts - COMPLETE with Google Sheets support
+// src/config/index.ts - COMPLETE without Gemini support
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -33,12 +33,6 @@ export interface APIConfig {
     timeout: number;
   };
   openai: {
-    apiKey: string;
-    model: string;
-    timeout: number;
-    maxTokens: number;
-  };
-  gemini: {
     apiKey: string;
     model: string;
     timeout: number;
@@ -105,12 +99,6 @@ export const apiConfig: APIConfig = {
     timeout: 120000,
     maxTokens: 1500,
   },
-  gemini: {
-    apiKey: process.env.GEMINI_API_KEY || "",
-    model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
-    timeout: 120000,
-    maxTokens: 1000,
-  },
   anthropic: {
     apiKey: process.env.ANTHROPIC_API_KEY || "",
     model: process.env.ANTHROPIC_MODEL || "claude-3-5-sonnet-20240620",
@@ -141,7 +129,6 @@ export function validateConfig(): void {
 
   if (!apiConfig.llama.apiKey) errors.push("LLAMA_CLOUD_API_KEY required");
   if (!apiConfig.openai.apiKey) errors.push("OPENAI_API_KEY required");
-  if (!apiConfig.gemini.apiKey) errors.push("GEMINI_API_KEY required");
   if (!apiConfig.anthropic.apiKey) errors.push("ANTHROPIC_API_KEY required");
 
   // Google Sheets validation (optional)
@@ -166,7 +153,7 @@ export function validateConfig(): void {
     `🔧 Processing config: ${config.concurrent.extraction}E/${config.concurrent.scoring}S/${config.concurrent.validation}V concurrent`
   );
   console.log(
-    "🤖 AI Services: OpenAI (GPT-4o-mini) + Gemini (Flash) + Anthropic (Sonnet)"
+    "🤖 AI Services: OpenAI (GPT-4o-mini) + Anthropic (Claude Sonnet)"
   );
   
   if (apiConfig.googleSheets.enabled) {

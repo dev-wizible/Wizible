@@ -18,8 +18,7 @@ export interface ResumeFile {
     extraction?: any;
     scores?: ResumeScores;
     validation?: {
-      gemini: ValidationResponse;
-      anthropic: ValidationResponse;
+      anthropic?: ValidationResponse;
     };
   };
   error?: string;
@@ -72,25 +71,25 @@ export interface BatchMetrics {
 
   validation: {
     totalValidated: number;
-    geminiAgreement: number;
     anthropicAgreement: number;
     consensusAgreement: number;
   };
 }
 
-// Updated ResumeScores interface to match new structure
+// Updated ResumeScores interface to match the exact JSON structure from paste.txt
 export interface CriterionScore {
-  criterion: string;
+  parameter: string;
   score: number;
   reasoning: string;
 }
 
 export interface ResumeScores {
-  candidate_evaluation: {
-    JD_Specific_Criteria: CriterionScore[];
-    General_Criteria: CriterionScore[];
-    total_score: number;
-  };
+  candidate_name: string;
+  job_specific_evaluation: CriterionScore[];
+  job_specific_total_score: number;
+  general_attribute_evaluation: CriterionScore[];
+  general_total_score: number;
+  overall_total_score: number;
 }
 
 // Validation types for Stage 4

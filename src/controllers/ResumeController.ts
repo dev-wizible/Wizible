@@ -1,4 +1,4 @@
-// src/controllers/ResumeController.ts - UPDATED with Google Sheets health check
+// src/controllers/ResumeController.ts - UPDATED without Gemini
 import { Request, Response } from "express";
 import { BulkResumeProcessor } from "../services/BulkResumeProcessor";
 import { GoogleSheetsLogger } from "../services/GoogleSheetsLogger";
@@ -22,7 +22,9 @@ export class ResumeController {
   private async initializeProcessor(): Promise<void> {
     try {
       await this.processor.initialize();
-      console.log("✅ ResumeController initialized with validation services");
+      console.log(
+        "✅ ResumeController initialized with Anthropic validation services"
+      );
     } catch (error) {
       console.error("❌ Failed to initialize ResumeController:", error);
     }
@@ -131,7 +133,7 @@ export class ResumeController {
       }
 
       console.log(
-        `📋 Creating batch for ${pdfFiles.length} PDF files with validation`
+        `📋 Creating batch for ${pdfFiles.length} PDF files with Anthropic validation`
       );
 
       const batchId = await this.processor.createBatch(
@@ -145,7 +147,7 @@ export class ResumeController {
           batchId,
           totalFiles: pdfFiles.length,
           status: "created",
-          pipeline: "Extract → Score → Validate (Gemini + Anthropic)",
+          pipeline: "Extract → Score → Validate (Anthropic)",
           googleSheetsLogging: apiConfig.googleSheets.enabled,
         },
         timestamp: new Date().toISOString(),
@@ -173,8 +175,8 @@ export class ResumeController {
           batchId,
           status: "started",
           message:
-            "Batch processing started with 3-stage pipeline (Extract → Score → Validate)",
-          services: ["LlamaIndex", "OpenAI", "Gemini", "Anthropic"],
+            "Batch processing started with 3-stage pipeline (Extract → Score → Validate with Anthropic)",
+          services: ["LlamaIndex", "OpenAI", "Anthropic"],
           googleSheetsLogging: apiConfig.googleSheets.enabled,
         },
         timestamp: new Date().toISOString(),
@@ -336,26 +338,10 @@ export class ResumeController {
         throughput: batch.metrics.timing.throughputPerHour,
         validation: {
           totalValidated: batch.metrics.validation.totalValidated,
-          geminiAgreementRate:
-            batch.metrics.validation.totalValidated > 0
-              ? (
-                  (batch.metrics.validation.geminiAgreement /
-                    batch.metrics.validation.totalValidated) *
-                  100
-                ).toFixed(1) + "%"
-              : "0%",
           anthropicAgreementRate:
             batch.metrics.validation.totalValidated > 0
               ? (
                   (batch.metrics.validation.anthropicAgreement /
-                    batch.metrics.validation.totalValidated) *
-                  100
-                ).toFixed(1) + "%"
-              : "0%",
-          consensusRate:
-            batch.metrics.validation.totalValidated > 0
-              ? (
-                  (batch.metrics.validation.consensusAgreement /
                     batch.metrics.validation.totalValidated) *
                   100
                 ).toFixed(1) + "%"
@@ -504,7 +490,7 @@ export class ResumeController {
     archive.finalize();
   }
 
-  // NEW: Download validation results
+  // Validation download
   private async downloadValidations(
     batchId: string,
     res: Response
@@ -611,8 +597,7 @@ export class ResumeController {
     }
   };
 
-  // Get system health and statistics (UPDATED with Google Sheets status)
-  // Updated getSystemHealth method in ResumeController.ts
+  // Get system health and statistics (UPDATED without Gemini)
   getSystemHealth = async (req: Request, res: Response): Promise<void> => {
     try {
       const batches = this.processor.getAllBatches();
@@ -623,16 +608,8 @@ export class ResumeController {
         (sum, b) => sum + b.metrics.validation.totalValidated,
         0
       );
-      const totalGeminiAgreements = completedBatches.reduce(
-        (sum, b) => sum + b.metrics.validation.geminiAgreement,
-        0
-      );
       const totalAnthropicAgreements = completedBatches.reduce(
         (sum, b) => sum + b.metrics.validation.anthropicAgreement,
-        0
-      );
-      const totalConsensus = completedBatches.reduce(
-        (sum, b) => sum + b.metrics.validation.consensusAgreement,
         0
       );
 
@@ -641,9 +618,8 @@ export class ResumeController {
       let scoredFiles = 0;
       completedBatches.forEach((batch) => {
         batch.files.forEach((file) => {
-          if (file.results.scores?.candidate_evaluation?.total_score) {
-            totalScoreSum +=
-              file.results.scores.candidate_evaluation.total_score;
+          if (file.results.scores?.overall_total_score) {
+            totalScoreSum += file.results.scores.overall_total_score;
             scoredFiles++;
           }
         });
@@ -702,32 +678,23 @@ export class ResumeController {
         },
         scoring: {
           evaluationStructure: {
-            jdSpecificCriteria: 17,
-            generalCriteria: 6,
-            totalCriteria: 23,
-            maxScore: 230,
-            scoringScale: "1-10 per criterion",
+            jobSpecificCriteria: 8,
+            generalCriteria: 7,
+            totalCriteria: 15,
+            maxScore: 150,
+            scoringScale: "0-10 per criterion",
           },
-          averageScore: `${averageScore}/230`,
+          averageScore: `${averageScore}/150`,
           totalFilesScored: scoredFiles,
         },
         validation: {
           totalValidated,
-          geminiAgreementRate:
-            totalValidated > 0
-              ? ((totalGeminiAgreements / totalValidated) * 100).toFixed(1) +
-                "%"
-              : "0%",
           anthropicAgreementRate:
             totalValidated > 0
               ? ((totalAnthropicAgreements / totalValidated) * 100).toFixed(1) +
                 "%"
               : "0%",
-          consensusRate:
-            totalValidated > 0
-              ? ((totalConsensus / totalValidated) * 100).toFixed(1) + "%"
-              : "0%",
-          services: ["Gemini 1.5 Pro", "Claude 3.5 Sonnet"],
+          services: ["Claude 3.5 Sonnet"],
         },
         googleSheets: {
           enabled: apiConfig.googleSheets.enabled,
@@ -736,7 +703,7 @@ export class ResumeController {
             ? apiConfig.googleSheets.sheetId.substring(0, 8) + "..."
             : null,
           structure:
-            "Updated for new evaluation criteria (23 columns + validation)",
+            "Updated for new evaluation criteria (15 columns + validation)",
         },
         configuration: {
           hasJobConfig: !!this.jobConfig,
@@ -745,7 +712,7 @@ export class ResumeController {
           concurrentValidations: 4,
           maxMemoryMB: 2048,
           pipeline:
-            "Extract → Score (23 criteria) → Validate (Gemini + Anthropic) → Log to Sheets",
+            "Extract → Score (15 criteria) → Validate (Anthropic) → Log to Sheets",
         },
       };
 

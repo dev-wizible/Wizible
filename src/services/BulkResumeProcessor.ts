@@ -1,4 +1,4 @@
-// src/services/BulkResumeProcessor.ts - COMPLETE with Google Sheets logging
+// src/services/BulkResumeProcessor.ts - COMPLETE without Gemini
 import { EventEmitter } from "events";
 import fs from "fs";
 import path from "path";
@@ -6,7 +6,6 @@ import { v4 as uuidv4 } from "uuid";
 import PQueue from "p-queue";
 import { LlamaExtractor } from "./LlamaExtractor";
 import { OpenAIScorer } from "./OpenAIScorer";
-import { GeminiValidator } from "./GeminiValidator";
 import { AnthropicValidator } from "./AnthropicValidator";
 import { GoogleSheetsLogger } from "./GoogleSheetsLogger";
 import { config, serverConfig } from "../config";
@@ -23,7 +22,6 @@ export class BulkResumeProcessor extends EventEmitter {
   private jobs = new Map<string, BatchJob>();
   private extractor: LlamaExtractor;
   private scorer: OpenAIScorer;
-  private geminiValidator: GeminiValidator;
   private anthropicValidator: AnthropicValidator;
   private sheetsLogger: GoogleSheetsLogger;
 
@@ -41,7 +39,6 @@ export class BulkResumeProcessor extends EventEmitter {
 
     this.extractor = new LlamaExtractor();
     this.scorer = new OpenAIScorer();
-    this.geminiValidator = new GeminiValidator();
     this.anthropicValidator = new AnthropicValidator();
     this.sheetsLogger = new GoogleSheetsLogger();
 
@@ -81,7 +78,7 @@ export class BulkResumeProcessor extends EventEmitter {
       }
     }
 
-    console.log("✅ BulkResumeProcessor initialized with validation services");
+    console.log("✅ BulkResumeProcessor initialized with Anthropic validation");
   }
 
   async createBatch(
@@ -133,7 +130,7 @@ export class BulkResumeProcessor extends EventEmitter {
     });
 
     console.log(
-      `📋 Created batch ${batchId} with ${files.length} files (with validation)`
+      `📋 Created batch ${batchId} with ${files.length} files (with Anthropic validation)`
     );
     return batchId;
   }
@@ -158,7 +155,7 @@ export class BulkResumeProcessor extends EventEmitter {
     });
 
     console.log(
-      `🚀 Starting batch ${batchId} with ${batch.files.length} files (Extract → Score → Validate)`
+      `🚀 Starting batch ${batchId} with ${batch.files.length} files (Extract → Score → Validate with Anthropic)`
     );
 
     // Start processing pipeline
@@ -221,12 +218,12 @@ export class BulkResumeProcessor extends EventEmitter {
         `✅ Stage 2 completed: All scoring done for batch ${batch.id}`
       );
 
-      // STAGE 3: Validate scored files with both Gemini and Anthropic
+      // STAGE 3: Validate scored files with Anthropic only
       const scoredFiles = batch.files.filter(
         (f) => f.results.scores && f.status === "validating"
       );
       console.log(
-        `🔍 Stage 3: Validating ${scoredFiles.length} scored resumes with Gemini & Anthropic...`
+        `🔍 Stage 3: Validating ${scoredFiles.length} scored resumes with Anthropic...`
       );
 
       for (const file of scoredFiles) {
@@ -380,15 +377,15 @@ export class BulkResumeProcessor extends EventEmitter {
         fileId: file.id,
         data: {
           filename: file.originalFile.originalname,
-          score: scores.candidate_evaluation?.total_score || 0,
+          score: scores.overall_total_score || 0,
         },
         timestamp: new Date(),
       });
 
       console.log(
         `🎯 Scored: ${file.originalFile.originalname} (${
-          scores.candidate_evaluation?.total_score || 0
-        }/230)`
+          scores.overall_total_score || 0
+        }/150)`
       );
     } catch (error) {
       console.error(
@@ -421,7 +418,7 @@ export class BulkResumeProcessor extends EventEmitter {
       this.updateBatchMetrics(batch);
 
       console.log(
-        `🔍 Validating: ${file.originalFile.originalname} with Gemini & Anthropic...`
+        `🔍 Validating: ${file.originalFile.originalname} with Anthropic...`
       );
 
       const validationRequest: ValidationRequest = {
@@ -432,43 +429,15 @@ export class BulkResumeProcessor extends EventEmitter {
         resumeFilename: file.originalFile.originalname,
       };
 
-      // Run both validations in parallel, capturing individual results
-      const [geminiResult, anthropicResult] = await Promise.allSettled([
-        this.geminiValidator.validateScore(validationRequest),
-        this.anthropicValidator.validateScore(validationRequest),
-      ]);
+      // Run Anthropic validation only
+      const anthropicResult = await this.anthropicValidator.validateScore(
+        validationRequest
+      );
 
-      // Prepare validation object
-      const validation: any = {};
-      let atLeastOneSuccess = false;
-      if (geminiResult.status === "fulfilled") {
-        validation.gemini = geminiResult.value;
-        atLeastOneSuccess = true;
-      } else {
-        validation.gemini = undefined;
-        console.error(
-          `Gemini validation failed for ${file.originalFile.originalname}:`,
-          geminiResult.reason
-        );
-      }
-      if (anthropicResult.status === "fulfilled") {
-        validation.anthropic = anthropicResult.value;
-        atLeastOneSuccess = true;
-      } else {
-        validation.anthropic = undefined;
-        console.error(
-          `Anthropic validation failed for ${file.originalFile.originalname}:`,
-          anthropicResult.reason
-        );
-      }
-
-      if (!atLeastOneSuccess) {
-        throw new Error(
-          `Both Gemini and Anthropic validation failed for ${file.originalFile.originalname}`
-        );
-      }
-
-      file.results.validation = validation;
+      // Store validation result
+      file.results.validation = {
+        anthropic: anthropicResult,
+      };
 
       file.progress.validationEnd = new Date();
       file.progress.totalDuration =
@@ -493,17 +462,8 @@ export class BulkResumeProcessor extends EventEmitter {
 
       // Update batch validation metrics
       batch.metrics.validation.totalValidated++;
-      if (validation.gemini && validation.gemini.verdict === "Valid")
-        batch.metrics.validation.geminiAgreement++;
-      if (validation.anthropic && validation.anthropic.verdict === "Valid")
+      if (anthropicResult.verdict === "Valid") {
         batch.metrics.validation.anthropicAgreement++;
-      if (
-        validation.gemini &&
-        validation.gemini.verdict === "Valid" &&
-        validation.anthropic &&
-        validation.anthropic.verdict === "Valid"
-      ) {
-        batch.metrics.validation.consensusAgreement++;
       }
 
       this.emitEvent({
@@ -512,22 +472,14 @@ export class BulkResumeProcessor extends EventEmitter {
         fileId: file.id,
         data: {
           filename: file.originalFile.originalname,
-          geminiVerdict: validation.gemini?.verdict,
-          anthropicVerdict: validation.anthropic?.verdict,
-          originalScore:
-            file.results.scores.candidate_evaluation?.total_score || 0,
+          anthropicVerdict: anthropicResult.verdict,
+          originalScore: file.results.scores.overall_total_score || 0,
         },
         timestamp: new Date(),
       });
 
-      const consensus =
-        validation.gemini?.verdict === validation.anthropic?.verdict
-          ? "✅"
-          : "⚠️";
       console.log(
-        `${consensus} Validated: ${file.originalFile.originalname} - Gemini: ${
-          validation.gemini?.verdict || "N/A"
-        }, Anthropic: ${validation.anthropic?.verdict || "N/A"}`
+        `✅ Validated: ${file.originalFile.originalname} - Anthropic: ${anthropicResult.verdict}`
       );
     } catch (error) {
       console.error(
@@ -603,13 +555,6 @@ export class BulkResumeProcessor extends EventEmitter {
 
     // Log validation statistics
     const { validation } = batch.metrics;
-    const geminiAgreementRate =
-      validation.totalValidated > 0
-        ? (
-            (validation.geminiAgreement / validation.totalValidated) *
-            100
-          ).toFixed(1)
-        : "0.0";
     const anthropicAgreementRate =
       validation.totalValidated > 0
         ? (
@@ -617,23 +562,10 @@ export class BulkResumeProcessor extends EventEmitter {
             100
           ).toFixed(1)
         : "0.0";
-    const consensusRate =
-      validation.totalValidated > 0
-        ? (
-            (validation.consensusAgreement / validation.totalValidated) *
-            100
-          ).toFixed(1)
-        : "0.0";
 
     console.log(`📊 Validation Results:`);
     console.log(
-      `   🤖 Gemini agreed with OpenAI: ${validation.geminiAgreement}/${validation.totalValidated} (${geminiAgreementRate}%)`
-    );
-    console.log(
       `   🧠 Anthropic agreed with OpenAI: ${validation.anthropicAgreement}/${validation.totalValidated} (${anthropicAgreementRate}%)`
-    );
-    console.log(
-      `   🤝 Full consensus (all 3 agree): ${validation.consensusAgreement}/${validation.totalValidated} (${consensusRate}%)`
     );
 
     this.emitEvent({
@@ -645,16 +577,14 @@ export class BulkResumeProcessor extends EventEmitter {
         failed: failedCount,
         durationSeconds: totalTime,
         validation: {
-          geminiAgreementRate,
           anthropicAgreementRate,
-          consensusRate,
         },
       },
       timestamp: new Date(),
     });
   }
 
-  // Rest of the existing methods remain the same...
+  // Initialize metrics without Gemini references
   private initializeMetrics(totalFiles: number) {
     return {
       total: totalFiles,
@@ -677,9 +607,8 @@ export class BulkResumeProcessor extends EventEmitter {
       },
       validation: {
         totalValidated: 0,
-        geminiAgreement: 0,
         anthropicAgreement: 0,
-        consensusAgreement: 0,
+        consensusAgreement: 0, // This will now represent Anthropic-only validation
       },
     };
   }
@@ -818,15 +747,14 @@ export class BulkResumeProcessor extends EventEmitter {
         processingTime: file.progress.totalDuration,
         scores: file.results.scores,
         summary: {
-          totalScore:
-            file.results.scores?.candidate_evaluation?.total_score || 0,
-          maxScore: 230,
-          jdCriteriaCount:
-            file.results.scores?.candidate_evaluation?.JD_Specific_Criteria
-              ?.length || 0,
+          overallScore: file.results.scores?.overall_total_score || 0,
+          jobSpecificScore: file.results.scores?.job_specific_total_score || 0,
+          generalScore: file.results.scores?.general_total_score || 0,
+          maxScore: 150,
+          jobSpecificCriteriaCount:
+            file.results.scores?.job_specific_evaluation?.length || 0,
           generalCriteriaCount:
-            file.results.scores?.candidate_evaluation?.General_Criteria
-              ?.length || 0,
+            file.results.scores?.general_attribute_evaluation?.length || 0,
         },
       };
 
@@ -857,8 +785,7 @@ export class BulkResumeProcessor extends EventEmitter {
         filename: file.originalFile.originalname,
         timestamp: new Date().toISOString(),
         processingTime: file.progress.totalDuration,
-        originalScore:
-          file.results.scores?.candidate_evaluation?.total_score || 0,
+        originalScore: file.results.scores?.overall_total_score || 0,
         validation: file.results.validation,
       };
 
@@ -882,27 +809,19 @@ export class BulkResumeProcessor extends EventEmitter {
       const validatedFiles = batch.files.filter((f) => f.results.validation);
       const validationAnalysis = {
         totalValidated: validatedFiles.length,
-        geminiAgreement: validatedFiles.filter(
-          (f) => f.results.validation?.gemini?.verdict === "Valid"
-        ).length,
         anthropicAgreement: validatedFiles.filter(
           (f) => f.results.validation?.anthropic?.verdict === "Valid"
-        ).length,
-        consensusAgreement: validatedFiles.filter(
-          (f) =>
-            f.results.validation?.gemini?.verdict === "Valid" &&
-            f.results.validation?.anthropic?.verdict === "Valid"
         ).length,
       };
 
       const report = {
         batchId: batch.id,
         evaluationStructure: {
-          jdSpecificCriteria: 17,
-          generalCriteria: 6,
-          totalCriteria: 23,
-          maxScore: 230,
-          scoringScale: "1-10 per criterion",
+          jobSpecificCriteria: 8,
+          generalCriteria: 7,
+          totalCriteria: 15,
+          maxScore: 150,
+          scoringScale: "0-10 per criterion",
         },
         summary: {
           totalFiles: batch.metrics.total,
@@ -918,26 +837,10 @@ export class BulkResumeProcessor extends EventEmitter {
         validation: {
           analysis: validationAnalysis,
           rates: {
-            geminiAgreementRate:
-              validationAnalysis.totalValidated > 0
-                ? (
-                    (validationAnalysis.geminiAgreement /
-                      validationAnalysis.totalValidated) *
-                    100
-                  ).toFixed(2) + "%"
-                : "0%",
             anthropicAgreementRate:
               validationAnalysis.totalValidated > 0
                 ? (
                     (validationAnalysis.anthropicAgreement /
-                      validationAnalysis.totalValidated) *
-                    100
-                  ).toFixed(2) + "%"
-                : "0%",
-            consensusRate:
-              validationAnalysis.totalValidated > 0
-                ? (
-                    (validationAnalysis.consensusAgreement /
                       validationAnalysis.totalValidated) *
                     100
                   ).toFixed(2) + "%"
@@ -947,20 +850,12 @@ export class BulkResumeProcessor extends EventEmitter {
         files: batch.files.map((file) => ({
           filename: file.originalFile.originalname,
           status: file.status,
-          totalScore:
-            file.results.scores?.candidate_evaluation?.total_score || null,
-          jdCriteriaScores:
-            file.results.scores?.candidate_evaluation?.JD_Specific_Criteria
-              ?.length || 0,
-          generalCriteriaScores:
-            file.results.scores?.candidate_evaluation?.General_Criteria
-              ?.length || 0,
+          totalScore: file.results.scores?.overall_total_score || null,
+          jobSpecificScore:
+            file.results.scores?.job_specific_total_score || null,
+          generalScore: file.results.scores?.general_total_score || null,
           validation: file.results.validation
             ? {
-                gemini: {
-                  verdict: file.results.validation.gemini?.verdict,
-                  confidence: file.results.validation.gemini?.confidence,
-                },
                 anthropic: {
                   verdict: file.results.validation.anthropic?.verdict,
                   confidence: file.results.validation.anthropic?.confidence,

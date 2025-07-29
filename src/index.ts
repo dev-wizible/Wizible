@@ -100,7 +100,7 @@ process.on("SIGINT", gracefulShutdown);
 
 // Start server
 const server = app.listen(serverConfig.port, () => {
-  console.log("\n🚀 BULK RESUME PROCESSOR v2.0.0 - AI VALIDATION READY");
+  console.log("\n🚀 BULK RESUME PROCESSOR v2.0.0 - ANTHROPIC VALIDATION");
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   console.log(`📡 Server running on: http://localhost:${serverConfig.port}`);
   console.log(`📊 Dashboard: http://localhost:${serverConfig.port}`);
@@ -110,12 +110,12 @@ const server = app.listen(serverConfig.port, () => {
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   console.log("🤖 AI VALIDATION PIPELINE:");
   console.log("   • Stage 1: LlamaIndex extraction");
-  console.log("   • Stage 2: OpenAI scoring");
-  console.log("   • Stage 3: Gemini & Anthropic validation");
+  console.log("   • Stage 2: OpenAI scoring (15 criteria, max 150 points)");
+  console.log("   • Stage 3: Anthropic validation");
   console.log("   • 4 concurrent extractions");
   console.log("   • 3 concurrent scoring operations");
   console.log("   • 4 concurrent validations");
-  console.log("   • Real-time validation consensus tracking");
+  console.log("   • Anthropic-only validation consensus");
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   console.log("📋 QUICK START:");
   console.log("   1. POST /api/config - Upload job description & rubric");
@@ -125,12 +125,13 @@ const server = app.listen(serverConfig.port, () => {
     "   4. GET /api/batch/{id}/progress - Monitor validation progress"
   );
   console.log(
-    "   5. GET /api/batch/{id}/download/validations - Download AI insights"
+    "   5. GET /api/batch/{id}/download/validations - Download validation results"
   );
   console.log(
     "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
   );
 });
+
 // Handle server errors
 server.on("error", (error: any) => {
   if (error.code === "EADDRINUSE") {
