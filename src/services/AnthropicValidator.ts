@@ -1,4 +1,4 @@
-// src/services/AnthropicValidator.ts - Updated with new validation prompt and fixed parsing
+// src/services/AnthropicValidator.ts
 import Anthropic from '@anthropic-ai/sdk';
 import { apiConfig, config } from '../config';
 import { ValidationRequest, ValidationResponse } from '../types';
@@ -9,7 +9,7 @@ export class AnthropicValidator {
   constructor() {
     this.anthropic = new Anthropic({
       apiKey: apiConfig.anthropic.apiKey,
-      timeout: apiConfig.anthropic.timeout
+      timeout: 60000 // 60 seconds timeout
     });
   }
 
@@ -24,7 +24,7 @@ export class AnthropicValidator {
         
         const message = await this.anthropic.messages.create({
           model: apiConfig.anthropic.model,
-          max_tokens: 2000, // Increased for detailed validation
+          max_tokens: 2000,
           temperature: 0.1,
           messages: [
             {
@@ -64,81 +64,60 @@ export class AnthropicValidator {
     evaluationRubric: string, 
     openaiScore: any
   ): string {
-    // Create the new second-level judge prompt
-    return `You are an expert evaluator and your task is to act as a second-level judge. You will receive:
-1. The original evaluation rubric (criteria and scoring guide).
-2. A candidate's resume.
-3. The JSON output from the first evaluator (containing scores and reasoning for each criterion).
+    return `You are a senior expert evaluator acting as a second opinion on resume scoring. Your task is to review the first evaluator's assessment and provide validation.
 
-Your responsibilities:
-- For each criterion in the original rubric:
-    1. Review the candidate's resume.
-    2. Review the score and reasoning given by the first evaluator.
-    3. Decide:
-        - If you **AGREE** with the score, mark status as "AGREE".
-        - If you **DISAGREE**, provide:
-            - The new corrected score.
-            - A short reasoning for your change (1–2 lines).
+**YOUR ROLE:**
+- Review the original resume data
+- Examine the first evaluator's scores and reasoning
+- Determine if you agree or disagree with the overall assessment
+- Provide your independent judgment
 
-Return the result as a JSON in the following structure:
-{
-  "judged_evaluation": {
-    "JD_Specific_Criteria": [
-      {
-        "criterion": "<Criterion Name>",
-        "original_score": <integer>,
-        "original_reasoning": "<Reasoning from first evaluator>",
-        "judgement": "AGREE",
-        "new_score": null,
-        "reasoning": ""
-      }
-      ...(for all JD-specific criteria)
-    ],
-    "General_Criteria": [
-      {
-        "criterion": "<Criterion Name>",
-        "original_score": <integer>,
-        "original_reasoning": "<Reasoning from first evaluator>",
-        "judgement": "DISAGREE",
-        "new_score": <integer>,
-        "reasoning": "<If disagree, why; if agree, leave empty>"
-      }
-      ...(for all general criteria)
-    ]
-  }
-}
+**EVALUATION CONTEXT:**
+Job Description: ${jobDescription}
 
-Rules:
-- Do not include commentary outside the JSON.
-- Be objective and base judgment ONLY on evidence from the resume and the rubric.
-- If information in the resume does not support the original reasoning, adjust the score accordingly.
+Evaluation Rubric: ${evaluationRubric}
 
-Now, here is the input:
-
-Rubric:
-${evaluationRubric}
-
-Candidate Resume:
+**CANDIDATE RESUME:**
 ${JSON.stringify(resumeData, null, 2)}
 
-First Evaluator Output:
+**FIRST EVALUATOR'S ASSESSMENT:**
 ${JSON.stringify(openaiScore, null, 2)}
 
-Perform the judgment and return ONLY the JSON in the specified structure.`;
+**YOUR TASK:**
+Provide a validation assessment in this exact JSON format:
+
+{
+  "verdict": "Valid" or "Invalid",
+  "reason": "Brief explanation of your overall assessment",
+  "recommendedScore": {
+    "skillsScore": <1-100>,
+    "experienceScore": <1-100>,
+    "overallScore": <1-100>
+  },
+  "confidence": <1-10>,
+  "keyDiscrepancies": ["list", "of", "major", "disagreements"]
+}
+
+**SCORING GUIDELINES:**
+- "Valid": You generally agree with the first evaluator's assessment (70%+ agreement)
+- "Invalid": You significantly disagree with the assessment (major scoring errors)
+- Recommended scores should be normalized to 1-100 scale
+- Confidence: 1=very uncertain, 10=very confident
+- Focus on major discrepancies, not minor differences
+
+Return ONLY the JSON response.`;
   }
 
   private parseValidationResponse(content: string): ValidationResponse {
     console.log('🔍 Anthropic raw response:', content.substring(0, 500));
     
-    // More robust JSON extraction
+    // Extract JSON from response
     let jsonStr = '';
     
-    // Try to find JSON with various patterns
     const patterns = [
-      /```json\s*\n?([\s\S]*?)\n?\s*```/i,  // Markdown code block
-      /```\s*\n?([\s\S]*?)\n?\s*```/i,      // Generic code block
-      /\{\s*"judged_evaluation"[\s\S]*?\}\s*$/i, // Direct JSON match
-      /(\{[\s\S]*\})/                        // Any JSON-like structure
+      /```json\s*\n?([\s\S]*?)\n?\s*```/i,
+      /```\s*\n?([\s\S]*?)\n?\s*```/i,
+      /\{[\s\S]*\}/
     ];
     
     for (const pattern of patterns) {
@@ -150,11 +129,9 @@ Perform the judgment and return ONLY the JSON in the specified structure.`;
     }
     
     if (!jsonStr) {
-      // Last resort: try to find the opening brace and extract everything after
       const braceIndex = content.indexOf('{');
       if (braceIndex !== -1) {
         jsonStr = content.substring(braceIndex);
-        // Try to find the matching closing brace
         let braceCount = 0;
         let endIndex = -1;
         for (let i = 0; i < jsonStr.length; i++) {
@@ -175,118 +152,35 @@ Perform the judgment and return ONLY the JSON in the specified structure.`;
       throw new Error('No JSON found in Anthropic response');
     }
 
-    // MUCH more conservative cleaning - only remove truly problematic characters
+    // Clean the JSON string
     jsonStr = jsonStr
-      .replace(/[\u0000-\u001F]/g, '') // Remove only control characters (not printable chars)
-      .replace(/[\u007F-\u009F]/g, '') // Remove DEL and C1 control characters
+      .replace(/[\u0000-\u001F]/g, '')
+      .replace(/[\u007F-\u009F]/g, '')
       .trim();
 
     console.log('🧹 Cleaned JSON string:', jsonStr.substring(0, 300));
 
     try {
-      const judgedEvaluation = JSON.parse(jsonStr);
-      
-      // Convert the new format to the expected ValidationResponse format
-      return this.convertToValidationResponse(judgedEvaluation);
+      const validation = JSON.parse(jsonStr);
+      return validation as ValidationResponse;
     } catch (error) {
       console.error('❌ Failed to parse Anthropic JSON:', error);
-      console.error('Original content length:', content.length);
-      console.error('Extracted JSON string:', JSON.stringify(jsonStr.substring(0, 500)));
+      console.error('JSON string:', jsonStr.substring(0, 500));
       
-      // Try manual fixes for common issues
+      // Try to fix common issues
       try {
-        // Fix common JSON formatting issues without destroying structure
         let fixedJson = jsonStr
-          .replace(/,\s*}/g, '}')           // Remove trailing commas
-          .replace(/,\s*]/g, ']')           // Remove trailing commas in arrays
-          .replace(/([{,]\s*)(\w+):/g, '$1"$2":') // Quote unquoted keys
-          .replace(/:\s*([^",{\[\]}\s]+)([,}\]])/g, ':"$1"$2'); // Quote unquoted string values
+          .replace(/,\s*}/g, '}')
+          .replace(/,\s*]/g, ']')
+          .replace(/([{,]\s*)(\w+):/g, '$1"$2":')
+          .replace(/:\s*([^",{\[\]}\s]+)([,}\]])/g, ':"$1"$2');
         
-        console.log('🔧 Attempting manual JSON fixes:', fixedJson.substring(0, 200));
         const manuallyFixed = JSON.parse(fixedJson);
-        return this.convertToValidationResponse(manuallyFixed);
+        return manuallyFixed as ValidationResponse;
       } catch (manualError) {
-        console.error('❌ Manual fixing also failed:', manualError);
-        throw new Error(`JSON parsing failed: ${(error as Error).message}. Original: ${jsonStr.substring(0, 100)}`);
+        throw new Error(`JSON parsing failed: ${(error as Error).message}`);
       }
     }
-  }
-
-  private convertToValidationResponse(judgedEvaluation: any): ValidationResponse {
-    console.log('🔍 Converting judged evaluation:', Object.keys(judgedEvaluation));
-    
-    // Handle both "judged_evaluation" and "judgedevaluation" (in case underscores were removed)
-    let evaluation = judgedEvaluation.judged_evaluation || judgedEvaluation.judgedevaluation;
-    
-    if (!evaluation) {
-      console.error('Available keys:', Object.keys(judgedEvaluation));
-      throw new Error('Invalid judged evaluation format - missing judged_evaluation');
-    }
-
-    // Handle both formats of criteria names
-    let jdCriteria = evaluation.JD_Specific_Criteria || evaluation.JDSpecificCriteria || [];
-    let generalCriteria = evaluation.General_Criteria || evaluation.GeneralCriteria || [];
-    
-    // Validate the structure
-    if (!Array.isArray(jdCriteria) || !Array.isArray(generalCriteria)) {
-      console.error('JD Criteria type:', typeof jdCriteria, 'is array:', Array.isArray(jdCriteria));
-      console.error('General Criteria type:', typeof generalCriteria, 'is array:', Array.isArray(generalCriteria));
-      throw new Error('Invalid criteria arrays');
-    }
-    
-    // Count agreements and disagreements
-    const allCriteria = [...jdCriteria, ...generalCriteria];
-    
-    if (allCriteria.length === 0) {
-      throw new Error('No criteria found in validation response');
-    }
-    
-    console.log(`📊 Found ${allCriteria.length} criteria for validation`);
-    
-    const agreements = allCriteria.filter(c => c.judgement === 'AGREE').length;
-    const disagreements = allCriteria.filter(c => c.judgement === 'DISAGREE').length;
-    
-    // Calculate overall verdict based on agreement rate
-    const agreementRate = agreements / allCriteria.length;
-    const verdict = agreementRate >= 0.7 ? 'Valid' : 'Invalid'; // 70% agreement threshold
-    
-    // Calculate recommended scores (simplified) - handle missing field names
-    const totalOriginalScore = allCriteria.reduce((sum, c) => {
-      const originalScore = c.original_score || c.originalscore || 0;
-      return sum + originalScore;
-    }, 0);
-    
-    const totalAdjustedScore = allCriteria.reduce((sum, c) => {
-      const originalScore = c.original_score || c.originalscore || 0;
-      const newScore = c.new_score || c.newscore;
-      return sum + (c.judgement === 'DISAGREE' ? (newScore || originalScore) : originalScore);
-    }, 0);
-    
-    // Map to percentage scores for compatibility
-    const maxPossibleScore = allCriteria.length * 10;
-    const skillsScore = Math.max(1, Math.min(100, Math.round((totalAdjustedScore / maxPossibleScore) * 100)));
-    const experienceScore = skillsScore; // Simplified mapping
-    const overallScore = skillsScore;
-    
-    return {
-      verdict,
-      reason: `${agreements}/${allCriteria.length} criteria agreed upon (${(agreementRate * 100).toFixed(1)}% agreement)`,
-      recommendedScore: {
-        skillsScore,
-        experienceScore,
-        overallScore
-      },
-      confidence: Math.max(1, Math.min(10, Math.round(agreementRate * 10))),
-      keyDiscrepancies: allCriteria
-        .filter(c => c.judgement === 'DISAGREE')
-        .map(c => {
-          const originalScore = c.original_score || c.originalscore || 0;
-          const newScore = c.new_score || c.newscore || 0;
-          return `${c.criterion}: ${originalScore} → ${newScore} (${c.reasoning})`;
-        })
-        .slice(0, 3), // Limit to top 3 discrepancies
-      validationNotes: `Detailed judgment with ${disagreements} score adjustments`
-    };
   }
 
   private validateResponse(validation: any): void {
@@ -316,6 +210,16 @@ Perform the judgment and return ONLY the JSON in the specified structure.`;
       if (typeof validation.confidence !== 'number' || validation.confidence < 1 || validation.confidence > 10) {
         throw new Error('Invalid confidence: must be number 1-10');
       }
+    }
+
+    // Set default confidence if not provided
+    if (validation.confidence === undefined) {
+      validation.confidence = 7;
+    }
+
+    // Ensure keyDiscrepancies is an array
+    if (!validation.keyDiscrepancies) {
+      validation.keyDiscrepancies = [];
     }
   }
 

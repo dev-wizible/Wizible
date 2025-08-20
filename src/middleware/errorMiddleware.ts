@@ -22,9 +22,10 @@ export const errorMiddleware = (
   }
 
   if (err.code === "LIMIT_FILE_COUNT") {
+    const maxFiles = config.files.maxBatch === 0 ? "unlimited" : config.files.maxBatch;
     return res.status(400).json({
       success: false,
-      error: `Too many files. Maximum ${config.files.maxBatch} files per batch`,
+      error: `Too many files. Maximum ${maxFiles} files per batch`,
       timestamp: new Date().toISOString(),
     });
   }

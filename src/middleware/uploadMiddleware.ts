@@ -31,7 +31,7 @@ export const uploadMiddleware = multer({
   storage,
   fileFilter,
   limits: {
-    fileSize: config.files.maxSize,
-    files: config.files.maxBatch
-  }
+    fileSize: config.files.maxSize, // 10MB per file
+    files: config.files.maxBatch,   // Up to 5000 files
+  },
 });

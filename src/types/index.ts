@@ -1,25 +1,19 @@
-// src/types/index.ts - Updated with new scoring structure
-
+// src/types/index.ts
 export interface ResumeFile {
   id: string;
   originalFile: Express.Multer.File;
-  status: 'queued' | 'extracting' | 'scoring' | 'validating' | 'completed' | 'failed';
+  status: 'pending' | 'extracting' | 'extracted' | 'scoring' | 'scored' | 'validating' | 'completed' | 'failed';
   progress: {
     startTime: Date;
-    extractionStart?: Date;
     extractionEnd?: Date;
-    scoringStart?: Date;
     scoringEnd?: Date;
-    validationStart?: Date;
     validationEnd?: Date;
     totalDuration?: number;
   };
   results: {
     extraction?: any;
     scores?: ResumeScores;
-    validation?: {
-      anthropic?: ValidationResponse;
-    };
+    validation?: ValidationResponse;
   };
   error?: string;
   retryCount: number;
@@ -27,11 +21,13 @@ export interface ResumeFile {
 
 export interface BatchJob {
   id: string;
-  status: 'created' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled';
+  status: 'created' | 'extracting' | 'extracted' | 'configured' | 'processing' | 'scored' | 'validating' | 'completed' | 'failed' | 'cancelled';
   files: ResumeFile[];
-  config: JobConfig;
+  jobConfig?: JobConfig;
   metrics: BatchMetrics;
   createdAt: Date;
+  extractedAt?: Date;
+  configuredAt?: Date;
   startedAt?: Date;
   completedAt?: Date;
 }
@@ -39,44 +35,25 @@ export interface BatchJob {
 export interface JobConfig {
   jobDescription: string;
   evaluationRubric: string;
-  concurrency: {
-    extraction: number;
-    scoring: number;
-    validation: number;
-  };
 }
 
 export interface BatchMetrics {
   total: number;
-  queued: number;
+  pending: number;
   extracting: number;
+  extracted: number;
   scoring: number;
+  scored: number;
   validating: number;
   completed: number;
   failed: number;
-  
   timing: {
     elapsedMs: number;
-    avgExtractionMs: number;
-    avgScoringMs: number;
-    avgValidationMs: number;
-    estimatedCompletionMs?: number;
     throughputPerHour: number;
-  };
-  
-  memory: {
-    usedMB: number;
-    maxMB: number;
-  };
-
-  validation: {
-    totalValidated: number;
-    anthropicAgreement: number;
-    consensusAgreement: number;
+    estimatedCompletionMs?: number;
   };
 }
 
-// Updated ResumeScores interface to match the exact JSON structure from paste.txt
 export interface CriterionScore {
   parameter: string;
   score: number;
@@ -92,7 +69,6 @@ export interface ResumeScores {
   overall_total_score: number;
 }
 
-// Validation types for Stage 4
 export interface ValidationRequest {
   resumeData: any;
   jobDescription: string;
@@ -109,17 +85,8 @@ export interface ValidationResponse {
     experienceScore: number;
     overallScore: number;
   };
+  confidence: number;
   keyDiscrepancies?: string[];
-  confidence?: number;
-  validationNotes?: string;
-}
-
-export interface ProcessingEvent {
-  type: 'batch_created' | 'batch_started' | 'file_extracted' | 'file_scored' | 'file_validated' | 'batch_completed' | 'error';
-  batchId: string;
-  fileId?: string;
-  data?: any;
-  timestamp: Date;
 }
 
 export interface BatchProgress {
@@ -131,12 +98,4 @@ export interface BatchProgress {
     scoring: string[];
     validating: string[];
   };
-  recentEvents: ProcessingEvent[];
-}
-
-export interface APIResponse<T = any> {
-  success: boolean;
-  data?: T;
-  error?: string;
-  timestamp: string;
 }

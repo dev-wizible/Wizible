@@ -1,99 +1,32 @@
-// src/controllers/ResumeController.ts - UPDATED without Gemini
+// src/controllers/ResumeController.ts
 import { Request, Response } from "express";
 import { BulkResumeProcessor } from "../services/BulkResumeProcessor";
-import { GoogleSheetsLogger } from "../services/GoogleSheetsLogger";
 import { JobConfig } from "../types";
 import fs from "fs";
 import path from "path";
 import archiver from "archiver";
-import { serverConfig, apiConfig } from "../config";
+import { serverConfig } from "../config";
+import { v4 as uuidv4 } from "uuid";
 
 export class ResumeController {
   private processor: BulkResumeProcessor;
-  private sheetsLogger: GoogleSheetsLogger;
-  private jobConfig: JobConfig | null = null;
 
   constructor() {
     this.processor = new BulkResumeProcessor();
-    this.sheetsLogger = new GoogleSheetsLogger();
     this.initializeProcessor();
   }
 
   private async initializeProcessor(): Promise<void> {
     try {
       await this.processor.initialize();
-      console.log(
-        "✅ ResumeController initialized with Anthropic validation services"
-      );
+      console.log("✅ ResumeController initialized");
     } catch (error) {
       console.error("❌ Failed to initialize ResumeController:", error);
     }
   }
 
-  // Configure job description and evaluation rubric
-  uploadConfig = async (req: Request, res: Response): Promise<void> => {
-    try {
-      const { jobDescription, evaluationRubric } = req.body;
-
-      // Validation
-      if (
-        !jobDescription ||
-        typeof jobDescription !== "string" ||
-        jobDescription.trim().length < 20
-      ) {
-        res.status(400).json({
-          success: false,
-          error: "Job description must be at least 20 characters",
-          timestamp: new Date().toISOString(),
-        });
-        return;
-      }
-
-      if (
-        !evaluationRubric ||
-        typeof evaluationRubric !== "string" ||
-        evaluationRubric.trim().length < 20
-      ) {
-        res.status(400).json({
-          success: false,
-          error: "Evaluation rubric must be at least 20 characters",
-          timestamp: new Date().toISOString(),
-        });
-        return;
-      }
-
-      this.jobConfig = {
-        jobDescription: jobDescription.trim(),
-        evaluationRubric: evaluationRubric.trim(),
-        concurrency: {
-          extraction: 4,
-          scoring: 3,
-          validation: 4,
-        },
-      };
-
-      console.log("✅ Job configuration updated");
-
-      res.status(200).json({
-        success: true,
-        data: {
-          jobDescriptionLength: this.jobConfig.jobDescription.length,
-          evaluationRubricLength: this.jobConfig.evaluationRubric.length,
-        },
-        timestamp: new Date().toISOString(),
-      });
-    } catch (error) {
-      console.error("Error uploading configuration:", error);
-      res.status(500).json({
-        success: false,
-        error: "Internal server error",
-        timestamp: new Date().toISOString(),
-      });
-    }
-  };
-
-  // Create a new batch for processing
-  createBatch = async (req: Request, res: Response): Promise<void> => {
+  // Step 1: Extract resumes to JSON using LlamaIndex
+  extractResumes = async (req: Request, res: Response): Promise<void> => {
     try {
       const files = (req as Request & { files?: Express.Multer.File[] }).files;
 
@@ -101,17 +34,6 @@ export class ResumeController {
         res.status(400).json({
           success: false,
           error: "No files uploaded",
-          timestamp: new Date().toISOString(),
-        });
-        return;
-      }
-
-      if (!this.jobConfig) {
-        res.status(400).json({
-          success: false,
-          error:
-            "Job configuration not set. Please upload job description and rubric first.",
-          timestamp: new Date().toISOString(),
         });
         return;
       }
@@ -127,71 +49,152 @@ export class ResumeController {
         res.status(400).json({
           success: false,
           error: "No valid PDF files found",
-          timestamp: new Date().toISOString(),
         });
         return;
       }
 
-      console.log(
-        `📋 Creating batch for ${pdfFiles.length} PDF files with Anthropic validation`
-      );
+      console.log(`🔄 Starting extraction for ${pdfFiles.length} PDF files`);
 
-      const batchId = await this.processor.createBatch(
-        pdfFiles,
-        this.jobConfig
-      );
+      const batchId = await this.processor.extractResumes(pdfFiles);
 
       res.status(200).json({
         success: true,
         data: {
           batchId,
           totalFiles: pdfFiles.length,
-          status: "created",
-          pipeline: "Extract → Score → Validate (Anthropic)",
-          googleSheetsLogging: apiConfig.googleSheets.enabled,
+          extractedCount: pdfFiles.length,
+          status: "extracted",
+          message: "Resumes successfully extracted to JSON using LlamaIndex",
         },
-        timestamp: new Date().toISOString(),
       });
     } catch (error) {
-      console.error("Error creating batch:", error);
+      console.error("Error extracting resumes:", error);
       res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
-        timestamp: new Date().toISOString(),
       });
     }
   };
 
-  // Start processing a batch
-  startBatch = async (req: Request, res: Response): Promise<void> => {
+  // Step 2: Set job configuration
+  setJobConfiguration = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { jobDescription, evaluationRubric } = req.body;
+
+      if (!jobDescription?.trim() || jobDescription.trim().length < 20) {
+        res.status(400).json({
+          success: false,
+          error: "Job description must be at least 20 characters",
+        });
+        return;
+      }
+
+      if (!evaluationRubric?.trim() || evaluationRubric.trim().length < 20) {
+        res.status(400).json({
+          success: false,
+          error: "Evaluation rubric must be at least 20 characters",
+        });
+        return;
+      }
+
+      // Store configuration globally for now (in production, associate with batch)
+      const jobConfig: JobConfig = {
+        jobDescription: jobDescription.trim(),
+        evaluationRubric: evaluationRubric.trim(),
+      };
+
+      // Store in a global config file for simplicity
+      const configPath = path.join(serverConfig.outputDir, "job-config.json");
+      fs.writeFileSync(configPath, JSON.stringify(jobConfig, null, 2));
+
+      console.log("✅ Job configuration saved");
+
+      res.status(200).json({
+        success: true,
+        data: {
+          jobDescriptionLength: jobConfig.jobDescription.length,
+          evaluationRubricLength: jobConfig.evaluationRubric.length,
+          message: "Job configuration saved successfully",
+        },
+      });
+    } catch (error) {
+      console.error("Error saving job configuration:", error);
+      res.status(500).json({
+        success: false,
+        error: "Internal server error",
+      });
+    }
+  };
+
+  // Step 3: Prepare batch for processing
+  prepareBatch = async (req: Request, res: Response): Promise<void> => {
     try {
       const { batchId } = req.params;
 
-      await this.processor.startBatch(batchId);
+      // Load job configuration
+      const configPath = path.join(serverConfig.outputDir, "job-config.json");
+      if (!fs.existsSync(configPath)) {
+        res.status(400).json({
+          success: false,
+          error:
+            "Job configuration not found. Please set job configuration first.",
+        });
+        return;
+      }
+
+      const jobConfig = JSON.parse(fs.readFileSync(configPath, "utf8"));
+
+      // Set configuration for the batch
+      await this.processor.setJobConfiguration(batchId, jobConfig);
+      await this.processor.prepareBatch(batchId);
+
+      const batch = this.processor.getBatch(batchId);
+      const totalFiles = batch?.metrics.total || 0;
 
       res.status(200).json({
         success: true,
         data: {
           batchId,
-          status: "started",
-          message:
-            "Batch processing started with 3-stage pipeline (Extract → Score → Validate with Anthropic)",
-          services: ["LlamaIndex", "OpenAI", "Anthropic"],
-          googleSheetsLogging: apiConfig.googleSheets.enabled,
+          totalFiles,
+          status: "prepared",
+          message: "Batch prepared for processing",
         },
-        timestamp: new Date().toISOString(),
       });
     } catch (error) {
-      console.error("Error starting batch:", error);
+      console.error("Error preparing batch:", error);
       res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
-        timestamp: new Date().toISOString(),
       });
     }
   };
 
-  // Get batch progress and metrics
+  // Step 4: Start processing
+  startProcessing = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { batchId } = req.params;
+
+      await this.processor.startProcessing(batchId);
+
+      res.status(200).json({
+        success: true,
+        data: {
+          batchId,
+          status: "processing",
+          message:
+            "Processing started - OpenAI scoring and Anthropic validation pipeline",
+        },
+      });
+    } catch (error) {
+      console.error("Error starting processing:", error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : "Internal server error",
+      });
+    }
+  };
+
+  // Get batch progress
   getBatchProgress = async (req: Request, res: Response): Promise<void> => {
     try {
       const { batchId } = req.params;
@@ -201,7 +204,6 @@ export class ResumeController {
         res.status(404).json({
           success: false,
           error: "Batch not found",
-          timestamp: new Date().toISOString(),
         });
         return;
       }
@@ -209,20 +211,18 @@ export class ResumeController {
       res.status(200).json({
         success: true,
         data: progress,
-        timestamp: new Date().toISOString(),
       });
     } catch (error) {
       console.error("Error getting batch progress:", error);
       res.status(500).json({
         success: false,
         error: "Internal server error",
-        timestamp: new Date().toISOString(),
       });
     }
   };
 
-  // Pause batch processing
-  pauseBatch = async (req: Request, res: Response): Promise<void> => {
+  // Pause processing
+  pauseProcessing = async (req: Request, res: Response): Promise<void> => {
     try {
       const { batchId } = req.params;
       const success = this.processor.pauseBatch(batchId);
@@ -231,31 +231,25 @@ export class ResumeController {
         res.status(400).json({
           success: false,
           error: "Cannot pause batch (not found or not running)",
-          timestamp: new Date().toISOString(),
         });
         return;
       }
 
       res.status(200).json({
         success: true,
-        data: {
-          batchId,
-          status: "paused",
-        },
-        timestamp: new Date().toISOString(),
+        data: { batchId, status: "paused" },
       });
     } catch (error) {
-      console.error("Error pausing batch:", error);
+      console.error("Error pausing processing:", error);
       res.status(500).json({
         success: false,
         error: "Internal server error",
-        timestamp: new Date().toISOString(),
       });
     }
   };
 
-  // Resume batch processing
-  resumeBatch = async (req: Request, res: Response): Promise<void> => {
+  // Resume processing
+  resumeProcessing = async (req: Request, res: Response): Promise<void> => {
     try {
       const { batchId } = req.params;
       const success = this.processor.resumeBatch(batchId);
@@ -264,31 +258,25 @@ export class ResumeController {
         res.status(400).json({
           success: false,
           error: "Cannot resume batch (not found or not paused)",
-          timestamp: new Date().toISOString(),
         });
         return;
       }
 
       res.status(200).json({
         success: true,
-        data: {
-          batchId,
-          status: "running",
-        },
-        timestamp: new Date().toISOString(),
+        data: { batchId, status: "processing" },
       });
     } catch (error) {
-      console.error("Error resuming batch:", error);
+      console.error("Error resuming processing:", error);
       res.status(500).json({
         success: false,
         error: "Internal server error",
-        timestamp: new Date().toISOString(),
       });
     }
   };
 
-  // Cancel batch processing
-  cancelBatch = async (req: Request, res: Response): Promise<void> => {
+  // Cancel processing
+  cancelProcessing = async (req: Request, res: Response): Promise<void> => {
     try {
       const { batchId } = req.params;
       const success = this.processor.cancelBatch(batchId);
@@ -297,25 +285,19 @@ export class ResumeController {
         res.status(400).json({
           success: false,
           error: "Cannot cancel batch (not found or not active)",
-          timestamp: new Date().toISOString(),
         });
         return;
       }
 
       res.status(200).json({
         success: true,
-        data: {
-          batchId,
-          status: "cancelled",
-        },
-        timestamp: new Date().toISOString(),
+        data: { batchId, status: "cancelled" },
       });
     } catch (error) {
-      console.error("Error cancelling batch:", error);
+      console.error("Error cancelling processing:", error);
       res.status(500).json({
         success: false,
         error: "Internal server error",
-        timestamp: new Date().toISOString(),
       });
     }
   };
@@ -332,21 +314,11 @@ export class ResumeController {
         completed: batch.metrics.completed,
         failed: batch.metrics.failed,
         createdAt: batch.createdAt,
+        extractedAt: batch.extractedAt,
+        configuredAt: batch.configuredAt,
         startedAt: batch.startedAt,
         completedAt: batch.completedAt,
-        processingTime: batch.metrics.timing.elapsedMs,
         throughput: batch.metrics.timing.throughputPerHour,
-        validation: {
-          totalValidated: batch.metrics.validation.totalValidated,
-          anthropicAgreementRate:
-            batch.metrics.validation.totalValidated > 0
-              ? (
-                  (batch.metrics.validation.anthropicAgreement /
-                    batch.metrics.validation.totalValidated) *
-                  100
-                ).toFixed(1) + "%"
-              : "0%",
-        },
       }));
 
       res.status(200).json({
@@ -355,20 +327,18 @@ export class ResumeController {
           batches: batchSummaries,
           total: batches.length,
         },
-        timestamp: new Date().toISOString(),
       });
     } catch (error) {
       console.error("Error getting all batches:", error);
       res.status(500).json({
         success: false,
         error: "Internal server error",
-        timestamp: new Date().toISOString(),
       });
     }
   };
 
-  // Download batch results (UPDATED to include validations)
-  downloadBatchResults = async (req: Request, res: Response): Promise<void> => {
+  // Download results
+  downloadResults = async (req: Request, res: Response): Promise<void> => {
     try {
       const { batchId, type } = req.params;
 
@@ -377,46 +347,40 @@ export class ResumeController {
           success: false,
           error:
             "Invalid download type. Use: extractions, scores, validations, or report",
-          timestamp: new Date().toISOString(),
         });
         return;
       }
 
-      if (type === "extractions") {
-        await this.downloadExtractions(batchId, res);
-      } else if (type === "scores") {
-        await this.downloadScores(batchId, res);
-      } else if (type === "validations") {
-        await this.downloadValidations(batchId, res);
-      } else if (type === "report") {
+      if (type === "report") {
         await this.downloadReport(batchId, res);
+      } else {
+        await this.downloadFiles(batchId, type, res);
       }
     } catch (error) {
-      console.error("Error downloading batch results:", error);
+      console.error("Error downloading results:", error);
       res.status(500).json({
         success: false,
         error: "Internal server error",
-        timestamp: new Date().toISOString(),
       });
     }
   };
 
-  private async downloadExtractions(
+  private async downloadFiles(
     batchId: string,
+    type: string,
     res: Response
   ): Promise<void> {
-    const extractionsDir = path.join(serverConfig.outputDir, "extractions");
+    const outputDir = path.join(serverConfig.outputDir, type);
 
-    if (!fs.existsSync(extractionsDir)) {
+    if (!fs.existsSync(outputDir)) {
       res.status(404).json({
         success: false,
-        error: "No extractions found",
-        timestamp: new Date().toISOString(),
+        error: `No ${type} results found`,
       });
       return;
     }
 
-    const zipFilename = `batch-${batchId}-extractions.zip`;
+    const zipFilename = `batch-${batchId}-${type}.zip`;
     res.setHeader("Content-Type", "application/zip");
     res.setHeader(
       "Content-Disposition",
@@ -429,107 +393,16 @@ export class ResumeController {
       res.status(500).json({
         success: false,
         error: "Error creating zip file",
-        timestamp: new Date().toISOString(),
       });
     });
 
     archive.pipe(res);
 
-    // Add all extraction JSON files to the archive
-    const files = fs.readdirSync(extractionsDir);
+    // Add all JSON files to the archive
+    const files = fs.readdirSync(outputDir);
     files.forEach((file) => {
       if (file.endsWith(".json")) {
-        const filePath = path.join(extractionsDir, file);
-        archive.file(filePath, { name: file });
-      }
-    });
-
-    archive.finalize();
-  }
-
-  private async downloadScores(batchId: string, res: Response): Promise<void> {
-    const scoresDir = path.join(serverConfig.outputDir, "scores");
-
-    if (!fs.existsSync(scoresDir)) {
-      res.status(404).json({
-        success: false,
-        error: "No scores found",
-        timestamp: new Date().toISOString(),
-      });
-      return;
-    }
-
-    const zipFilename = `batch-${batchId}-scores.zip`;
-    res.setHeader("Content-Type", "application/zip");
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename="${zipFilename}"`
-    );
-
-    const archive = archiver("zip", { zlib: { level: 9 } });
-    archive.on("error", (err) => {
-      console.error("Archive error:", err);
-      res.status(500).json({
-        success: false,
-        error: "Error creating zip file",
-        timestamp: new Date().toISOString(),
-      });
-    });
-
-    archive.pipe(res);
-
-    // Add all score JSON files to the archive
-    const files = fs.readdirSync(scoresDir);
-    files.forEach((file) => {
-      if (file.endsWith("_scores.json")) {
-        const filePath = path.join(scoresDir, file);
-        archive.file(filePath, { name: file });
-      }
-    });
-
-    archive.finalize();
-  }
-
-  // Validation download
-  private async downloadValidations(
-    batchId: string,
-    res: Response
-  ): Promise<void> {
-    const validationsDir = path.join(serverConfig.outputDir, "validations");
-
-    if (!fs.existsSync(validationsDir)) {
-      res.status(404).json({
-        success: false,
-        error: "No validation results found",
-        timestamp: new Date().toISOString(),
-      });
-      return;
-    }
-
-    const zipFilename = `batch-${batchId}-validations.zip`;
-    res.setHeader("Content-Type", "application/zip");
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename="${zipFilename}"`
-    );
-
-    const archive = archiver("zip", { zlib: { level: 9 } });
-    archive.on("error", (err) => {
-      console.error("Archive error:", err);
-      res.status(500).json({
-        success: false,
-        error: "Error creating zip file",
-        timestamp: new Date().toISOString(),
-      });
-    });
-
-    archive.pipe(res);
-
-    // Add all validation JSON files to the archive
-    const files = fs.readdirSync(validationsDir);
-    files.forEach((file) => {
-      if (file.endsWith("_validation.json")) {
-        const filePath = path.join(validationsDir, file);
+        const filePath = path.join(outputDir, file);
         archive.file(filePath, { name: file });
       }
     });
@@ -548,7 +421,6 @@ export class ResumeController {
       res.status(404).json({
         success: false,
         error: "Report not found",
-        timestamp: new Date().toISOString(),
       });
       return;
     }
@@ -564,7 +436,253 @@ export class ResumeController {
     res.send(reportData);
   }
 
-  // Delete a batch
+  // Get extracted files (for Step 3 auto-detection)
+  getExtractedFiles = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const extractionsDir = path.join(serverConfig.outputDir, "extractions");
+
+      if (!fs.existsSync(extractionsDir)) {
+        res.status(200).json({
+          success: true,
+          data: { files: [] },
+        });
+        return;
+      }
+
+      const files = fs
+        .readdirSync(extractionsDir)
+        .filter((file) => file.endsWith(".json"))
+        .map((file) => {
+          const filePath = path.join(extractionsDir, file);
+          const stats = fs.statSync(filePath);
+          return {
+            name: file,
+            size: stats.size,
+            modified: stats.mtime,
+            path: filePath,
+          };
+        })
+        .sort((a, b) => b.modified.getTime() - a.modified.getTime()); // Most recent first
+
+      res.status(200).json({
+        success: true,
+        data: {
+          files,
+          count: files.length,
+        },
+      });
+    } catch (error) {
+      console.error("Error getting extracted files:", error);
+      res.status(500).json({
+        success: false,
+        error: "Internal server error",
+      });
+    }
+  };
+
+  // Start evaluation (combines batch creation and processing)
+  startEvaluation = async (req: Request, res: Response): Promise<void> => {
+    try {
+      // Check if we have extracted files
+      const extractionsDir = path.join(serverConfig.outputDir, "extractions");
+      if (!fs.existsSync(extractionsDir)) {
+        res.status(400).json({
+          success: false,
+          error: "No extracted files found. Please complete extraction first.",
+        });
+        return;
+      }
+
+      const extractedFiles = fs
+        .readdirSync(extractionsDir)
+        .filter((file) => file.endsWith(".json"));
+
+      if (extractedFiles.length === 0) {
+        res.status(400).json({
+          success: false,
+          error: "No extracted JSON files found for evaluation.",
+        });
+        return;
+      }
+
+      // Check if we have job configuration
+      const configPath = path.join(serverConfig.outputDir, "job-config.json");
+      if (!fs.existsSync(configPath)) {
+        res.status(400).json({
+          success: false,
+          error: "Job configuration not found. Please configure job first.",
+        });
+        return;
+      }
+
+      const jobConfig = JSON.parse(fs.readFileSync(configPath, "utf8"));
+
+      // Create a virtual batch from extracted files
+      const batchId = await this.createVirtualBatch(extractedFiles, jobConfig);
+
+      // Start processing immediately
+      await this.processor.startProcessing(batchId);
+
+      res.status(200).json({
+        success: true,
+        data: {
+          batchId,
+          totalFiles: extractedFiles.length,
+          status: "processing",
+          message:
+            "OpenAI scoring started - processing extracted files through OpenAI GPT-4o-mini",
+        },
+      });
+    } catch (error) {
+      console.error("Error starting evaluation:", error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : "Internal server error",
+      });
+    }
+  };
+
+  // Start Anthropic validation (separate from OpenAI scoring)
+  startAnthropicValidation = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    try {
+      const { batchId } = req.body;
+
+      if (!batchId) {
+        res.status(400).json({
+          success: false,
+          error: "Batch ID is required",
+        });
+        return;
+      }
+
+      // Start Anthropic validation
+      await this.processor.startAnthropicValidation(batchId);
+
+      res.status(200).json({
+        success: true,
+        data: {
+          batchId,
+          status: "validating",
+          message:
+            "Anthropic validation started - validating OpenAI scores with Claude",
+        },
+      });
+    } catch (error) {
+      console.error("Error starting Anthropic validation:", error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : "Internal server error",
+      });
+    }
+  };
+
+  private async createVirtualBatch(
+    extractedFiles: string[],
+    jobConfig: JobConfig
+  ): Promise<string> {
+    // Create virtual resume files from extracted JSONs
+    const virtualFiles: Express.Multer.File[] = extractedFiles.map(
+      (filename, index) => {
+        const extractionPath = path.join(
+          serverConfig.outputDir,
+          "extractions",
+          filename
+        );
+        const originalName = filename.replace("_extraction.json", ".pdf");
+
+        return {
+          fieldname: "resumes",
+          originalname: originalName,
+          encoding: "7bit",
+          mimetype: "application/pdf",
+          size: fs.statSync(extractionPath).size,
+          destination: serverConfig.uploadDir,
+          filename: `virtual_${Date.now()}_${index}.pdf`,
+          path: extractionPath, // Point to the extraction file
+          buffer: Buffer.from(""),
+          stream: null as any,
+        } as Express.Multer.File;
+      }
+    );
+
+    // Create batch with pre-extracted data
+    const batchId = await this.createVirtualBatchWithExtractions(
+      virtualFiles,
+      jobConfig,
+      extractedFiles
+    );
+
+    return batchId;
+  }
+
+  private async createVirtualBatchWithExtractions(
+    virtualFiles: Express.Multer.File[],
+    jobConfig: JobConfig,
+    extractedFiles: string[]
+  ): Promise<string> {
+    // This is a simplified version that creates a batch with pre-existing extractions
+    const batchId = uuidv4();
+
+    // Load existing extractions and create a batch ready for scoring
+    const resumeFiles = virtualFiles.map((file, index) => {
+      const extractionPath = path.join(
+        serverConfig.outputDir,
+        "extractions",
+        extractedFiles[index]
+      );
+      const extractionData = JSON.parse(
+        fs.readFileSync(extractionPath, "utf8")
+      );
+
+      return {
+        id: uuidv4(),
+        originalFile: file,
+        status: "pending" as const, // Ready for scoring
+        progress: { startTime: new Date() },
+        results: {
+          extraction: extractionData, // Pre-load the extraction
+        },
+        retryCount: 0,
+      };
+    });
+
+    // Create the batch object directly in the processor
+    const batch = {
+      id: batchId,
+      status: "configured" as const,
+      files: resumeFiles,
+      jobConfig,
+      metrics: {
+        total: resumeFiles.length,
+        pending: resumeFiles.length,
+        extracting: 0,
+        extracted: resumeFiles.length, // Already extracted
+        scoring: 0,
+        scored: 0,
+        validating: 0,
+        completed: 0,
+        failed: 0,
+        timing: {
+          elapsedMs: 0,
+          throughputPerHour: 0,
+        },
+      },
+      createdAt: new Date(),
+      configuredAt: new Date(),
+    };
+
+    // Inject the batch into the processor
+    (this.processor as any).jobs.set(batchId, batch);
+
+    console.log(
+      `📦 Created virtual batch ${batchId} with ${resumeFiles.length} pre-extracted files`
+    );
+
+    return batchId;
+  }
   deleteBatch = async (req: Request, res: Response): Promise<void> => {
     try {
       const { batchId } = req.params;
@@ -574,87 +692,45 @@ export class ResumeController {
         res.status(400).json({
           success: false,
           error: "Cannot delete batch (not found or still active)",
-          timestamp: new Date().toISOString(),
         });
         return;
       }
 
       res.status(200).json({
         success: true,
-        data: {
-          batchId,
-          message: "Batch deleted successfully",
-        },
-        timestamp: new Date().toISOString(),
+        data: { batchId, message: "Batch deleted successfully" },
       });
     } catch (error) {
       console.error("Error deleting batch:", error);
       res.status(500).json({
         success: false,
         error: "Internal server error",
-        timestamp: new Date().toISOString(),
       });
     }
   };
 
-  // Get system health and statistics (UPDATED without Gemini)
+  // System health check
   getSystemHealth = async (req: Request, res: Response): Promise<void> => {
     try {
       const batches = this.processor.getAllBatches();
       const memUsage = process.memoryUsage();
-
-      const completedBatches = batches.filter((b) => b.status === "completed");
-      const totalValidated = completedBatches.reduce(
-        (sum, b) => sum + b.metrics.validation.totalValidated,
-        0
-      );
-      const totalAnthropicAgreements = completedBatches.reduce(
-        (sum, b) => sum + b.metrics.validation.anthropicAgreement,
-        0
-      );
-
-      // Calculate average scores from completed files
-      let totalScoreSum = 0;
-      let scoredFiles = 0;
-      completedBatches.forEach((batch) => {
-        batch.files.forEach((file) => {
-          if (file.results.scores?.overall_total_score) {
-            totalScoreSum += file.results.scores.overall_total_score;
-            scoredFiles++;
-          }
-        });
-      });
-
-      const averageScore =
-        scoredFiles > 0 ? (totalScoreSum / scoredFiles).toFixed(1) : "0";
-
-      // Test Google Sheets connection
-      let googleSheetsStatus = "disabled";
-      if (apiConfig.googleSheets.enabled) {
-        try {
-          const isConnected = await this.sheetsLogger.testConnection();
-          googleSheetsStatus = isConnected ? "connected" : "error";
-        } catch (error) {
-          googleSheetsStatus = "error";
-        }
-      }
 
       const stats = {
         system: {
           memoryUsage: {
             heapUsed: Math.round(memUsage.heapUsed / 1024 / 1024),
             heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024),
-            external: Math.round(memUsage.external / 1024 / 1024),
           },
           uptime: Math.round(process.uptime()),
-          nodeVersion: process.version,
+          status: "healthy",
         },
         batches: {
           total: batches.length,
-          active: batches.filter((b) =>
-            ["running", "paused"].includes(b.status)
-          ).length,
-          completed: completedBatches.length,
+          extracting: batches.filter((b) => b.status === "extracting").length,
+          extracted: batches.filter((b) => b.status === "extracted").length,
+          configured: batches.filter((b) => b.status === "configured").length,
+          processing: batches.filter((b) => b.status === "processing").length,
+          completed: batches.filter((b) => b.status === "completed").length,
           failed: batches.filter((b) => b.status === "failed").length,
         },
         processing: {
@@ -666,67 +742,29 @@ export class ResumeController {
             (sum, b) => sum + b.metrics.failed,
             0
           ),
-          averageSuccessRate:
-            batches.length > 0
-              ? (batches.reduce(
-                  (sum, b) => sum + b.metrics.completed / b.metrics.total,
-                  0
-                ) /
-                  batches.length) *
-                100
-              : 0,
         },
-        scoring: {
-          evaluationStructure: {
-            jobSpecificCriteria: 8,
-            generalCriteria: 7,
-            totalCriteria: 15,
-            maxScore: 150,
-            scoringScale: "0-10 per criterion",
-          },
-          averageScore: `${averageScore}/150`,
-          totalFilesScored: scoredFiles,
-        },
-        validation: {
-          totalValidated,
-          anthropicAgreementRate:
-            totalValidated > 0
-              ? ((totalAnthropicAgreements / totalValidated) * 100).toFixed(1) +
-                "%"
-              : "0%",
-          services: ["Claude 3.5 Sonnet"],
-        },
-        googleSheets: {
-          enabled: apiConfig.googleSheets.enabled,
-          status: googleSheetsStatus,
-          sheetId: apiConfig.googleSheets.enabled
-            ? apiConfig.googleSheets.sheetId.substring(0, 8) + "..."
-            : null,
-          structure:
-            "Updated for new evaluation criteria (15 columns + validation)",
-        },
-        configuration: {
-          hasJobConfig: !!this.jobConfig,
-          concurrentExtractions: 4,
-          concurrentScoring: 3,
-          concurrentValidations: 4,
-          maxMemoryMB: 2048,
-          pipeline:
-            "Extract → Score (15 criteria) → Validate (Anthropic) → Log to Sheets",
+        workflow: {
+          steps: [
+            "1. Upload Resumes → Convert to JSON (LlamaIndex)",
+            "2. Configure Job Description & Rubric",
+            "3. Create Processing Batch",
+            "4. Start Pipeline (OpenAI Scoring → Anthropic Validation)",
+            "5. Monitor Progress & Download Results",
+          ],
+          supportedFormats: ["PDF"],
+          maxBatchSize: 5000,
         },
       };
 
       res.status(200).json({
         success: true,
         data: stats,
-        timestamp: new Date().toISOString(),
       });
     } catch (error) {
       console.error("Error getting system health:", error);
       res.status(500).json({
         success: false,
         error: "Internal server error",
-        timestamp: new Date().toISOString(),
       });
     }
   };

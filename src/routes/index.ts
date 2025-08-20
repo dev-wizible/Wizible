@@ -1,73 +1,116 @@
-import express from 'express';
-import { ResumeController } from '../controllers/ResumeController';
-import { uploadMiddleware } from '../middleware/uploadMiddleware';
-import { validationMiddleware } from '../middleware/validationMiddleware';
-import { rateLimitMiddleware } from '../middleware/rateLimitMiddleware';
+// src/routes/index.ts
+import express from "express";
+import { ResumeController } from "../controllers/ResumeController";
+import { uploadMiddleware } from "../middleware/uploadMiddleware";
+import { param, body, validationResult } from "express-validator";
 
 const router = express.Router();
 const resumeController = new ResumeController();
 
-// Apply rate limiting to all routes
-router.use(rateLimitMiddleware);
+// Validation middleware
+const handleValidationErrors = (
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction
+) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      success: false,
+      error: "Validation failed",
+      details: errors.array(),
+    });
+  }
+  return next();
+};
 
-// Configuration routes
-router.post('/config', validationMiddleware.validateConfig, resumeController.uploadConfig);
+// Validation rules
+const validateJobConfig = [
+  body("jobDescription")
+    .isString()
+    .isLength({ min: 20, max: 10000 })
+    .withMessage("Job description must be 20-10000 characters"),
+  body("evaluationRubric")
+    .isString()
+    .isLength({ min: 20, max: 10000 })
+    .withMessage("Evaluation rubric must be 20-10000 characters"),
+  handleValidationErrors,
+];
 
-// Batch processing routes - FIXED PARAMETER SYNTAX
-router.post('/batch/create', 
-  uploadMiddleware.array('resumes', 1000),
-  validationMiddleware.validateFiles,
-  resumeController.createBatch
+const validateBatchId = [
+  param("batchId").isUUID().withMessage("Invalid batch ID format"),
+  handleValidationErrors,
+];
+
+const validateDownloadType = [
+  param("type")
+    .isIn(["extractions", "scores", "validations", "report"])
+    .withMessage(
+      "Download type must be: extractions, scores, validations, or report"
+    ),
+  handleValidationErrors,
+];
+
+// Step 1: Extract resumes to JSON using LlamaIndex
+router.post(
+  "/extract",
+  uploadMiddleware.array("resumes", 5000),
+  resumeController.extractResumes
 );
 
-router.post('/batch/:batchId/start', 
-  validationMiddleware.validateBatchId,
-  resumeController.startBatch
+// Step 2: Set job configuration
+router.post("/config", validateJobConfig, resumeController.setJobConfiguration);
+
+// Step 3: Get extracted files (auto-detection)
+router.get("/extracted-files", resumeController.getExtractedFiles);
+
+// Step 3: Start evaluation (OpenAI scoring only)
+router.post("/start-evaluation", resumeController.startEvaluation);
+
+// Step 4: Start Anthropic validation (separate from OpenAI)
+router.post(
+  "/start-anthropic-validation",
+  resumeController.startAnthropicValidation
 );
 
-router.get('/batch/:batchId/progress',
-  validationMiddleware.validateBatchId,
+// Progress monitoring
+router.get(
+  "/batch/:batchId/progress",
+  validateBatchId,
   resumeController.getBatchProgress
 );
 
-router.post('/batch/:batchId/pause',
-  validationMiddleware.validateBatchId,
-  resumeController.pauseBatch
+// Batch control
+router.post(
+  "/batch/:batchId/pause",
+  validateBatchId,
+  resumeController.pauseProcessing
 );
 
-router.post('/batch/:batchId/resume',
-  validationMiddleware.validateBatchId,
-  resumeController.resumeBatch
+router.post(
+  "/batch/:batchId/resume",
+  validateBatchId,
+  resumeController.resumeProcessing
 );
 
-router.post('/batch/:batchId/cancel',
-  validationMiddleware.validateBatchId,
-  resumeController.cancelBatch
+router.post(
+  "/batch/:batchId/cancel",
+  validateBatchId,
+  resumeController.cancelProcessing
 );
 
-router.delete('/batch/:batchId',
-  validationMiddleware.validateBatchId,
-  resumeController.deleteBatch
-);
+router.delete("/batch/:batchId", validateBatchId, resumeController.deleteBatch);
 
-// Download routes - FIXED PARAMETER SYNTAX
-router.get('/batch/:batchId/download/:type',
-  validationMiddleware.validateBatchId,
-  validationMiddleware.validateDownloadType,
-  resumeController.downloadBatchResults
+// Download results
+router.get(
+  "/batch/:batchId/download/:type",
+  validateBatchId,
+  validateDownloadType,
+  resumeController.downloadResults
 );
 
 // Management routes
-router.get('/batches', resumeController.getAllBatches);
-router.get('/health', resumeController.getSystemHealth);
-
-// Debug route to test if routes are working
-router.get('/test', (req, res) => {
-  res.json({
-    success: true,
-    message: 'Routes are working correctly',
-    timestamp: new Date().toISOString()
-  });
-});
+router.get("/batches", resumeController.getAllBatches);
+router.get("/health", resumeController.getSystemHealth);
 
 export default router;
