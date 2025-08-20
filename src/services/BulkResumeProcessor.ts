@@ -139,12 +139,18 @@ export class BulkResumeProcessor extends EventEmitter {
         (f) => f.status === "failed"
       ).length;
 
+      // Count how many were actually processed vs skipped
+      const skippedCount = batch.files.length - extractedCount - failedCount;
+
       batch.status = "extracted";
       batch.extractedAt = new Date();
 
       console.log(
-        `✅ Extraction completed: ${extractedCount}/${batch.files.length} files extracted`
+        `✅ Extraction completed: ${extractedCount}/${batch.files.length} files ready`
       );
+      if (skippedCount > 0) {
+        console.log(`⏭️  ${skippedCount} files skipped (already extracted)`);
+      }
       if (failedCount > 0) {
         console.log(
           `⚠️ ${failedCount} files failed extraction (likely due to rate limits or file issues)`
@@ -161,6 +167,28 @@ export class BulkResumeProcessor extends EventEmitter {
 
   private async extractFile(batch: BatchJob, file: ResumeFile): Promise<void> {
     try {
+      // Check if extraction already exists
+      const outputDir = getExtractionDir();
+      const filename = `${path.basename(
+        file.originalFile.originalname,
+        ".pdf"
+      )}_extraction.json`;
+      const existingFilePath = path.join(outputDir, filename);
+
+      if (fs.existsSync(existingFilePath)) {
+        console.log(
+          `⏭️  Skipping (already extracted): ${file.originalFile.originalname}`
+        );
+        // Load existing extraction result
+        const existingExtraction = JSON.parse(
+          fs.readFileSync(existingFilePath, "utf8")
+        );
+        file.results.extraction = existingExtraction;
+        file.progress.extractionEnd = new Date();
+        file.status = "extracted";
+        return;
+      }
+
       file.status = "extracting";
       this.updateMetrics(batch);
 
