@@ -5,7 +5,7 @@ import { JobConfig } from "../types";
 import fs from "fs";
 import path from "path";
 import archiver from "archiver";
-import { serverConfig } from "../config";
+import { serverConfig, getExtractionDir, setExtractionMode } from "../config";
 import { v4 as uuidv4 } from "uuid";
 
 export class ResumeController {
@@ -439,7 +439,7 @@ export class ResumeController {
   // Get extracted files (for Step 3 auto-detection)
   getExtractedFiles = async (req: Request, res: Response): Promise<void> => {
     try {
-      const extractionsDir = path.join(serverConfig.outputDir, "extractions");
+      const extractionsDir = getExtractionDir();
 
       if (!fs.existsSync(extractionsDir)) {
         res.status(200).json({
@@ -484,7 +484,7 @@ export class ResumeController {
   startEvaluation = async (req: Request, res: Response): Promise<void> => {
     try {
       // Check if we have extracted files
-      const extractionsDir = path.join(serverConfig.outputDir, "extractions");
+      const extractionsDir = getExtractionDir();
       if (!fs.existsSync(extractionsDir)) {
         res.status(400).json({
           success: false,
@@ -586,11 +586,7 @@ export class ResumeController {
     // Create virtual resume files from extracted JSONs
     const virtualFiles: Express.Multer.File[] = extractedFiles.map(
       (filename, index) => {
-        const extractionPath = path.join(
-          serverConfig.outputDir,
-          "extractions",
-          filename
-        );
+        const extractionPath = path.join(getExtractionDir(), filename);
         const originalName = filename.replace("_extraction.json", ".pdf");
 
         return {
@@ -629,8 +625,7 @@ export class ResumeController {
     // Load existing extractions and create a batch ready for scoring
     const resumeFiles = virtualFiles.map((file, index) => {
       const extractionPath = path.join(
-        serverConfig.outputDir,
-        "extractions",
+        getExtractionDir(),
         extractedFiles[index]
       );
       const extractionData = JSON.parse(
@@ -765,6 +760,57 @@ export class ResumeController {
       res.status(500).json({
         success: false,
         error: "Internal server error",
+      });
+    }
+  };
+
+  // Switch extraction mode between main and test
+  switchExtractionMode = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { mode } = req.body;
+
+      if (!mode || !["main", "test"].includes(mode)) {
+        res.status(400).json({
+          success: false,
+          error: "Mode must be 'main' or 'test'",
+        });
+        return;
+      }
+
+      setExtractionMode(mode);
+
+      res.status(200).json({
+        success: true,
+        data: {
+          mode,
+          extractionDir: getExtractionDir(),
+          message: `Extraction mode switched to: ${mode}`,
+        },
+      });
+    } catch (error) {
+      console.error("Error switching extraction mode:", error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : "Internal server error",
+      });
+    }
+  };
+
+  // Get current extraction mode
+  getExtractionMode = async (req: Request, res: Response): Promise<void> => {
+    try {
+      res.status(200).json({
+        success: true,
+        data: {
+          mode: serverConfig.extractionMode,
+          extractionDir: getExtractionDir(),
+        },
+      });
+    } catch (error) {
+      console.error("Error getting extraction mode:", error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : "Internal server error",
       });
     }
   };

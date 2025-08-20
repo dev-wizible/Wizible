@@ -109,6 +109,10 @@ router.get(
   resumeController.downloadResults
 );
 
+// Extraction mode management
+router.post("/extraction-mode", resumeController.switchExtractionMode);
+router.get("/extraction-mode", resumeController.getExtractionMode);
+
 // Management routes
 router.get("/batches", resumeController.getAllBatches);
 router.get("/health", resumeController.getSystemHealth);

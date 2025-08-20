@@ -675,6 +675,16 @@
       <div class="header">
         <h1>🚀 Resume Processor</h1>
         <p>Complete workflow for processing up to 5,000 resumes with AI</p>
+        
+        <!-- Extraction Mode Switcher -->
+        <div class="extraction-mode-switcher" style="margin-top: 15px; text-align: center; padding: 10px; background: #f8f9fa; border-radius: 8px; border: 1px solid #e9ecef;">
+          <label for="extractionMode" style="margin-right: 10px; color: #495057; font-weight: 500; font-size: 14px;">Extraction Folder:</label>
+          <select id="extractionMode" style="padding: 6px 12px; border: 1px solid #ced4da; border-radius: 4px; background: white; font-size: 14px; color: #495057;">
+            <option value="main">Main (extractions/)</option>
+            <option value="test">Test (extractions-test/)</option>
+          </select>
+          <span id="extractionModeStatus" style="margin-left: 10px; font-size: 12px; font-weight: 500;"></span>
+        </div>
       </div>
 
       <div class="workflow-container">
@@ -1165,6 +1175,7 @@
           this.conversionProgressInterval = null;
 
           this.initializeEventListeners();
+          this.loadExtractionMode();
           this.addLog(
             "System initialized - ready for resume processing",
             "info"
@@ -1278,6 +1289,11 @@
           document
             .getElementById("startAnthropicValidation")
             .addEventListener("click", this.startAnthropicValidation.bind(this));
+            
+          // Extraction mode switcher
+          document
+            .getElementById("extractionMode")
+            .addEventListener("change", this.switchExtractionMode.bind(this));
 
           // Configuration fields
           document
@@ -2024,6 +2040,81 @@
             if (this.validationInterval) {
               clearInterval(this.validationInterval);
               this.validationInterval = null;
+            }
+          }
+
+          // Load current extraction mode
+          async loadExtractionMode() {
+            try {
+              const response = await fetch(`${this.apiBaseUrl}/api/extraction-mode`);
+              const result = await response.json();
+              
+              if (result.success) {
+                const modeSelect = document.getElementById("extractionMode");
+                const statusSpan = document.getElementById("extractionModeStatus");
+                
+                if (modeSelect) {
+                  modeSelect.value = result.data.mode;
+                }
+                
+                if (statusSpan) {
+                  statusSpan.textContent = `📁 ${result.data.extractionDir}`;
+                  statusSpan.style.color = "#28a745";
+                }
+                
+                this.addLog(`Extraction mode: ${result.data.mode} (${result.data.extractionDir})`, "info");
+              }
+            } catch (error) {
+              console.warn("Failed to load extraction mode:", error);
+            }
+          }
+
+          // Switch extraction mode
+          async switchExtractionMode(event) {
+            try {
+              const mode = event.target.value;
+              const statusSpan = document.getElementById("extractionModeStatus");
+              
+              if (statusSpan) {
+                statusSpan.textContent = "🔄 Switching...";
+                statusSpan.style.color = "#ffc107";
+              }
+              
+              const response = await fetch(`${this.apiBaseUrl}/api/extraction-mode`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ mode })
+              });
+              
+              const result = await response.json();
+              
+              if (result.success) {
+                if (statusSpan) {
+                  statusSpan.textContent = `📁 ${result.data.extractionDir}`;
+                  statusSpan.style.color = "#28a745";
+                }
+                
+                this.addLog(`✅ Switched to ${mode} mode: ${result.data.extractionDir}`, "success");
+                
+                // Reset extraction status to force re-detection
+                this.extracted = false;
+                this.detectExtractedFiles();
+              } else {
+                if (statusSpan) {
+                  statusSpan.textContent = "❌ Failed";
+                  statusSpan.style.color = "#dc3545";
+                }
+                
+                this.addLog(`Failed to switch extraction mode: ${result.error}`, "error");
+              }
+            } catch (error) {
+              const statusSpan = document.getElementById("extractionModeStatus");
+              if (statusSpan) {
+                statusSpan.textContent = "❌ Error";
+                statusSpan.style.color = "#dc3545";
+              }
+              
+              this.addLog(`Error switching extraction mode: ${error.message}`, "error");
             }
           }
 

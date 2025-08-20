@@ -40,6 +40,7 @@ const requiredDirs = [
   serverConfig.uploadDir,
   serverConfig.outputDir,
   path.join(serverConfig.outputDir, "extractions"),
+  path.join(serverConfig.outputDir, "extractions-test"),
   path.join(serverConfig.outputDir, "scores"),
   path.join(serverConfig.outputDir, "validations"),
   path.join(serverConfig.outputDir, "reports"),
@@ -159,8 +160,10 @@ const server = app.listen(serverConfig.port, () => {
   console.log(`🔧 API endpoints: http://localhost:${serverConfig.port}/api`);
   console.log(`💾 Output directory: ${path.resolve(serverConfig.outputDir)}`);
   console.log(`📤 Upload directory: ${path.resolve(serverConfig.uploadDir)}`);
+  console.log(`📁 Extraction folders: extractions/ & extractions-test/`);
+  console.log(`🎯 Current extraction mode: ${serverConfig.extractionMode}`);
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-  console.log("📋 OPENAI-FOCUSED WORKFLOW:");
+  console.log("📋 OPENAI-FOCUSED WORKFLOW (with dual extraction folders):");
   console.log(
     "   1. Upload Resumes → Convert to JSON (LlamaIndex batch processing)"
   );

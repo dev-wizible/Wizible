@@ -7,7 +7,7 @@ import PQueue from "p-queue";
 import { LlamaExtractor } from "./LlamaExtractor";
 import { OpenAIScorer } from "./OpenAIScorer";
 import { AnthropicValidator } from "./AnthropicValidator";
-import { config, serverConfig } from "../config";
+import { config, serverConfig, getExtractionDir } from "../config";
 import {
   BatchJob,
   ResumeFile,
@@ -472,7 +472,7 @@ export class BulkResumeProcessor extends EventEmitter {
 
   private async saveExtractionResult(file: ResumeFile): Promise<void> {
     try {
-      const outputDir = path.join(serverConfig.outputDir, "extractions");
+      const outputDir = getExtractionDir();
       if (!fs.existsSync(outputDir)) {
         fs.mkdirSync(outputDir, { recursive: true });
       }
