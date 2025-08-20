@@ -2,7 +2,15 @@
 export interface ResumeFile {
   id: string;
   originalFile: Express.Multer.File;
-  status: 'pending' | 'extracting' | 'extracted' | 'scoring' | 'scored' | 'validating' | 'completed' | 'failed';
+  status:
+    | "pending"
+    | "extracting"
+    | "extracted"
+    | "scoring"
+    | "scored"
+    | "validating"
+    | "completed"
+    | "failed";
   progress: {
     startTime: Date;
     extractionEnd?: Date;
@@ -21,7 +29,17 @@ export interface ResumeFile {
 
 export interface BatchJob {
   id: string;
-  status: 'created' | 'extracting' | 'extracted' | 'configured' | 'processing' | 'scored' | 'validating' | 'completed' | 'failed' | 'cancelled';
+  status:
+    | "created"
+    | "extracting"
+    | "extracted"
+    | "configured"
+    | "processing"
+    | "scored"
+    | "validating"
+    | "completed"
+    | "failed"
+    | "cancelled";
   files: ResumeFile[];
   jobConfig?: JobConfig;
   metrics: BatchMetrics;
@@ -62,11 +80,9 @@ export interface CriterionScore {
 
 export interface ResumeScores {
   candidate_name: string;
-  job_specific_evaluation: CriterionScore[];
-  job_specific_total_score: number;
-  general_attribute_evaluation: CriterionScore[];
-  general_total_score: number;
-  overall_total_score: number;
+  evaluation_scores: CriterionScore[];
+  total_score: number;
+  max_possible_score: number;
 }
 
 export interface ValidationRequest {
@@ -78,7 +94,7 @@ export interface ValidationRequest {
 }
 
 export interface ValidationResponse {
-  verdict: 'Valid' | 'Invalid';
+  verdict: "Valid" | "Invalid";
   reason: string;
   recommendedScore: {
     skillsScore: number;
@@ -91,7 +107,7 @@ export interface ValidationResponse {
 
 export interface BatchProgress {
   batchId: string;
-  status: BatchJob['status'];
+  status: BatchJob["status"];
   metrics: BatchMetrics;
   currentFiles: {
     extracting: string[];

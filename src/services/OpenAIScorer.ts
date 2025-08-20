@@ -21,20 +21,26 @@ export class OpenAIScorer {
   }
 
   async scoreResume(request: ScoringRequest): Promise<ResumeScores> {
-    const { resumeData, jobDescription, evaluationRubric, resumeFilename } = request;
+    const { resumeData, jobDescription, evaluationRubric, resumeFilename } =
+      request;
 
     let lastError: Error | null = null;
 
     for (let attempt = 1; attempt <= config.retries.maxAttempts; attempt++) {
       try {
-        const prompt = this.buildScoringPrompt(resumeData, jobDescription, evaluationRubric);
+        const prompt = this.buildScoringPrompt(
+          resumeData,
+          jobDescription,
+          evaluationRubric
+        );
 
         const response = await this.openai.chat.completions.create({
           model: apiConfig.openai.model,
           messages: [
             {
               role: "system",
-              content: "You are an expert recruiter and evaluator. You must evaluate candidates against specific job criteria and return structured JSON responses only. Be objective and evidence-based in your scoring.",
+              content:
+                "You are an expert recruiter and evaluator. You must evaluate candidates against specific job criteria and return structured JSON responses only. Be objective and evidence-based in your scoring.",
             },
             {
               role: "user",
@@ -54,11 +60,15 @@ export class OpenAIScorer {
         const scores = JSON.parse(content) as ResumeScores;
         this.validateScores(scores);
 
-        console.log(`✅ OpenAI scoring completed for ${resumeFilename}: ${scores.overall_total_score}/150`);
+        console.log(
+          `✅ OpenAI scoring completed for ${resumeFilename}: ${scores.total_score}/${scores.max_possible_score}`
+        );
         return scores;
       } catch (error) {
         lastError = error as Error;
-        console.warn(`⚠️ Scoring attempt ${attempt}/${config.retries.maxAttempts} failed for ${resumeFilename}: ${error}`);
+        console.warn(
+          `⚠️ Scoring attempt ${attempt}/${config.retries.maxAttempts} failed for ${resumeFilename}: ${error}`
+        );
 
         if (attempt < config.retries.maxAttempts) {
           await this.delay(config.retries.delay * attempt);
@@ -66,10 +76,16 @@ export class OpenAIScorer {
       }
     }
 
-    throw new Error(`Failed to score ${resumeFilename} after ${config.retries.maxAttempts} attempts: ${lastError?.message}`);
+    throw new Error(
+      `Failed to score ${resumeFilename} after ${config.retries.maxAttempts} attempts: ${lastError?.message}`
+    );
   }
 
-  private buildScoringPrompt(resumeData: any, jobDescription: string, evaluationRubric: string): string {
+  private buildScoringPrompt(
+    resumeData: any,
+    jobDescription: string,
+    evaluationRubric: string
+  ): string {
     return `You are evaluating a candidate for a specific role. Score each criterion from 0-10 based on evidence in the resume.
 
 **SCORING GUIDELINES:**
@@ -79,91 +95,21 @@ export class OpenAIScorer {
 - 1-3 = Minimal evidence
 - 0 = No evidence or completely irrelevant
 
-**REQUIRED JSON STRUCTURE:**
+**IMPORTANT:** Use the evaluation rubric provided below to determine the specific parameters and scoring criteria. Extract the parameters from the rubric and create a JSON structure with those exact parameters.
+
+**REQUIRED JSON STRUCTURE FORMAT:**
 {
   "candidate_name": "CANDIDATE_NAME_FROM_RESUME",
-  "job_specific_evaluation": [
+  "evaluation_scores": [
     {
-      "parameter": "Understanding of Target User Segments",
-      "score": <integer 0-10>,
-      "reasoning": "<Evidence-based reasoning>"
-    },
-    {
-      "parameter": "Data-Driven Experimentation",
-      "score": <integer 0-10>,
-      "reasoning": "<Evidence-based reasoning>"
-    },
-    {
-      "parameter": "Market Research & GTM Strategy",
-      "score": <integer 0-10>,
-      "reasoning": "<Evidence-based reasoning>"
-    },
-    {
-      "parameter": "Understanding of Marketing Channels",
-      "score": <integer 0-10>,
-      "reasoning": "<Evidence-based reasoning>"
-    },
-    {
-      "parameter": "Marketing Budget Ownership",
-      "score": <integer 0-10>,
-      "reasoning": "<Evidence-based reasoning>"
-    },
-    {
-      "parameter": "Analytical Skills",
-      "score": <integer 0-10>,
-      "reasoning": "<Evidence-based reasoning>"
-    },
-    {
-      "parameter": "Creative Problem Solving",
-      "score": <integer 0-10>,
-      "reasoning": "<Evidence-based reasoning>"
-    },
-    {
-      "parameter": "Founder Mindset",
+      "parameter": "<PARAMETER_NAME_FROM_RUBRIC>",
       "score": <integer 0-10>,
       "reasoning": "<Evidence-based reasoning>"
     }
+    // ... repeat for each parameter defined in the rubric
   ],
-  "job_specific_total_score": <sum of above scores>,
-  "general_attribute_evaluation": [
-    {
-      "parameter": "Career Growth Rate",
-      "score": <integer 0-10>,
-      "reasoning": "<Evidence-based reasoning>"
-    },
-    {
-      "parameter": "Education Pedigree",
-      "score": <integer 0-10>,
-      "reasoning": "<Evidence-based reasoning>"
-    },
-    {
-      "parameter": "Company Pedigree",
-      "score": <integer 0-10>,
-      "reasoning": "<Evidence-based reasoning>"
-    },
-    {
-      "parameter": "Team Size Management",
-      "score": <integer 0-10>,
-      "reasoning": "<Evidence-based reasoning>"
-    },
-    {
-      "parameter": "Outstanding Impact",
-      "score": <integer 0-10>,
-      "reasoning": "<Evidence-based reasoning>"
-    },
-    {
-      "parameter": "Startup Experience",
-      "score": <integer 0-10>,
-      "reasoning": "<Evidence-based reasoning>"
-    },
-    {
-      "parameter": "Awards and Recognition",
-      "score": <integer 0-10>,
-      "reasoning": "<Evidence-based reasoning>"
-    }
-  ],
-  "general_total_score": <sum of above scores>,
-  "overall_total_score": <job_specific_total_score + general_total_score>
+  "total_score": <sum of all scores>,
+  "max_possible_score": <number of parameters × 10>
 }
 
 **JOB DESCRIPTION:**
@@ -175,7 +121,14 @@ ${evaluationRubric}
 **CANDIDATE RESUME DATA:**
 ${JSON.stringify(resumeData, null, 2)}
 
-Evaluate the candidate strictly based on evidence in the resume. Return ONLY the JSON structure specified above.`;
+**INSTRUCTIONS:**
+1. Carefully read the evaluation rubric to identify all the scoring parameters
+2. For each parameter in the rubric, evaluate the candidate and assign a score from 0-10
+3. Provide specific evidence from the resume to justify each score
+4. Calculate the total score and maximum possible score
+5. Return ONLY the JSON structure specified above with the parameters from the rubric
+
+Evaluate the candidate strictly based on evidence in the resume and the rubric criteria.`;
   }
 
   private validateScores(scores: any): void {
@@ -183,67 +136,53 @@ Evaluate the candidate strictly based on evidence in the resume. Return ONLY the
       throw new Error("Invalid scores: missing candidate_name");
     }
 
-    if (!scores.job_specific_evaluation || !Array.isArray(scores.job_specific_evaluation)) {
-      throw new Error("Invalid scores: missing or invalid job_specific_evaluation array");
+    if (!scores.evaluation_scores || !Array.isArray(scores.evaluation_scores)) {
+      throw new Error(
+        "Invalid scores: missing or invalid evaluation_scores array"
+      );
     }
 
-    if (!scores.general_attribute_evaluation || !Array.isArray(scores.general_attribute_evaluation)) {
-      throw new Error("Invalid scores: missing or invalid general_attribute_evaluation array");
+    if (scores.evaluation_scores.length === 0) {
+      throw new Error(
+        "Invalid scores: evaluation_scores array cannot be empty"
+      );
     }
 
-    if (scores.job_specific_evaluation.length !== 8) {
-      throw new Error(`Invalid job_specific_evaluation: expected 8 items, got ${scores.job_specific_evaluation.length}`);
+    // Validate each evaluation item and calculate total
+    let calculatedTotal = 0;
+
+    for (const evaluation of scores.evaluation_scores) {
+      this.validateCriterion(evaluation);
+      calculatedTotal += evaluation.score;
     }
 
-    if (scores.general_attribute_evaluation.length !== 7) {
-      throw new Error(`Invalid general_attribute_evaluation: expected 7 items, got ${scores.general_attribute_evaluation.length}`);
+    const expectedMaxScore = scores.evaluation_scores.length * 10;
+
+    // Validate and correct totals if needed
+    if (scores.total_score !== calculatedTotal) {
+      console.warn(
+        `Total score mismatch: calculated ${calculatedTotal}, received ${scores.total_score}`
+      );
+      scores.total_score = calculatedTotal;
     }
 
-    // Validate each criterion object and calculate totals
-    let jobSpecificTotal = 0;
-    let generalTotal = 0;
-
-    for (const criterion of scores.job_specific_evaluation) {
-      this.validateCriterion(criterion);
-      jobSpecificTotal += criterion.score;
-    }
-
-    for (const criterion of scores.general_attribute_evaluation) {
-      this.validateCriterion(criterion);
-      generalTotal += criterion.score;
-    }
-
-    // Validate totals
-    if (scores.job_specific_total_score !== jobSpecificTotal) {
-      console.warn(`Job specific total mismatch: calculated ${jobSpecificTotal}, received ${scores.job_specific_total_score}`);
-      scores.job_specific_total_score = jobSpecificTotal;
-    }
-
-    if (scores.general_total_score !== generalTotal) {
-      console.warn(`General total mismatch: calculated ${generalTotal}, received ${scores.general_total_score}`);
-      scores.general_total_score = generalTotal;
-    }
-
-    const overallTotal = jobSpecificTotal + generalTotal;
-    if (scores.overall_total_score !== overallTotal) {
-      console.warn(`Overall total mismatch: calculated ${overallTotal}, received ${scores.overall_total_score}`);
-      scores.overall_total_score = overallTotal;
+    if (scores.max_possible_score !== expectedMaxScore) {
+      console.warn(
+        `Max possible score mismatch: calculated ${expectedMaxScore}, received ${scores.max_possible_score}`
+      );
+      scores.max_possible_score = expectedMaxScore;
     }
 
     // Validate score ranges
-    if (scores.job_specific_total_score < 0 || scores.job_specific_total_score > 80) {
-      throw new Error(`Invalid job_specific_total_score: ${scores.job_specific_total_score} (expected 0-80)`);
+    if (scores.total_score < 0 || scores.total_score > expectedMaxScore) {
+      throw new Error(
+        `Invalid total_score: ${scores.total_score} (expected 0-${expectedMaxScore})`
+      );
     }
 
-    if (scores.general_total_score < 0 || scores.general_total_score > 70) {
-      throw new Error(`Invalid general_total_score: ${scores.general_total_score} (expected 0-70)`);
-    }
-
-    if (scores.overall_total_score < 0 || scores.overall_total_score > 150) {
-      throw new Error(`Invalid overall_total_score: ${scores.overall_total_score} (expected 0-150)`);
-    }
-
-    console.log(`✅ Validated scores: Job-specific: ${scores.job_specific_total_score}/80, General: ${scores.general_total_score}/70, Overall: ${scores.overall_total_score}/150`);
+    console.log(
+      `✅ Validated scores: ${scores.total_score}/${expectedMaxScore} for ${scores.evaluation_scores.length} criteria`
+    );
   }
 
   private validateCriterion(criterion: any): void {
@@ -255,17 +194,27 @@ Evaluate the candidate strictly based on evidence in the resume. Return ONLY the
     if (typeof score === "string") {
       score = parseInt(score, 10);
       if (isNaN(score)) {
-        throw new Error(`Invalid score for ${criterion.parameter}: "${criterion.score}" is not a valid number`);
+        throw new Error(
+          `Invalid score for ${criterion.parameter}: "${criterion.score}" is not a valid number`
+        );
       }
       criterion.score = score;
     }
 
     if (typeof score !== "number" || score < 0 || score > 10) {
-      throw new Error(`Invalid score for ${criterion.parameter}: must be number 0-10, got ${score}`);
+      throw new Error(
+        `Invalid score for ${criterion.parameter}: must be number 0-10, got ${score}`
+      );
     }
 
-    if (!criterion.reasoning || typeof criterion.reasoning !== "string" || criterion.reasoning.length < 10) {
-      throw new Error(`Invalid reasoning for ${criterion.parameter}: must be meaningful string (at least 10 chars)`);
+    if (
+      !criterion.reasoning ||
+      typeof criterion.reasoning !== "string" ||
+      criterion.reasoning.length < 10
+    ) {
+      throw new Error(
+        `Invalid reasoning for ${criterion.parameter}: must be meaningful string (at least 10 chars)`
+      );
     }
   }
 

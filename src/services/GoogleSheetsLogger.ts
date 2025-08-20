@@ -400,57 +400,36 @@ export class GoogleSheetsLogger {
     scores: any,
     validation: any
   ): any[] {
-    const evaluation = scores.job_specific_evaluation || [];
-    const generalEvaluation = scores.general_attribute_evaluation || [];
+    const evaluationScores = scores.evaluation_scores || [];
+    const totalScore = scores.total_score || 0;
+    const maxPossibleScore = scores.max_possible_score || 0;
 
-    // Extract JD-Specific Criteria scores with reasons (8 items)
-    const jdScoresWithReasons = this.extractCriteriaScoresWithReasons(
-      evaluation,
-      [
-        "Understanding of Target User Segments",
-        "Data-Driven Experimentation",
-        "Market Research & GTM Strategy",
-        "Understanding of Marketing Channels",
-        "Marketing Budget Ownership",
-        "Analytical Skills",
-        "Creative Problem Solving",
-        "Founder Mindset",
-      ]
-    );
+    // Extract all dynamic criteria scores with reasons
+    const allScoresWithReasons: any[] = [];
 
-    // Extract General Criteria scores with reasons (7 items)
-    const generalScoresWithReasons = this.extractCriteriaScoresWithReasons(
-      generalEvaluation,
-      [
-        "Career Growth Rate",
-        "Education Pedigree",
-        "Company Pedigree",
-        "Team Size Management",
-        "Outstanding Impact",
-        "Startup Experience",
-        "Awards and Recognition",
-      ]
-    );
-
-    const jdSpecificTotal = scores.job_specific_total_score || 0;
-    const generalTotal = scores.general_total_score || 0;
-    const overallTotal = scores.overall_total_score || 0;
+    for (const evaluation of evaluationScores) {
+      allScoresWithReasons.push(evaluation.score || 0); // Score
+      allScoresWithReasons.push(
+        evaluation.reasoning || "No reasoning provided"
+      ); // Reasoning
+    }
 
     return [
       file.originalFile.originalname, // A4 - Candidate Name
       "Resume uploaded via system", // B4 - Resume Link
       JSON.stringify(file.results.extraction || {}).substring(0, 100) + "...", // C4 - Resume JSON (truncated)
 
-      // JD-Specific Criteria (Score/Reason pairs: D4-S4)
-      ...jdScoresWithReasons,
+      // Dynamic Criteria (Score/Reason pairs starting from D4)
+      ...allScoresWithReasons,
 
-      // General Criteria (Score/Reason pairs: T4-AG4)
-      ...generalScoresWithReasons,
+      // Total Scores (after all criteria columns)
+      totalScore, // Total Score
+      maxPossibleScore, // Max Possible Score
+      `${totalScore}/${maxPossibleScore}`, // Score Summary
 
-      // Total Scores (AH4-AJ4)
-      jdSpecificTotal, // AH4 - JD Specific Score
-      generalTotal, // AI4 - General Score
-      overallTotal, // AJ4 - Total Score
+      // Validation info
+      validation?.verdict || "N/A",
+      validation?.reason || "No validation performed",
     ];
   }
 

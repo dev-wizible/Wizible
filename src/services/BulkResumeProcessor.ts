@@ -421,7 +421,7 @@ export class BulkResumeProcessor extends EventEmitter {
 
       await this.saveScoreResult(file);
       console.log(
-        `🎯 Scored: ${file.originalFile.originalname} (${scores.overall_total_score}/150)`
+        `🎯 Scored: ${file.originalFile.originalname} (${scores.total_score}/${scores.max_possible_score})`
       );
     } catch (error) {
       await this.handleFileError(batch, file, error as Error, "scoring");
@@ -569,7 +569,7 @@ export class BulkResumeProcessor extends EventEmitter {
         filename: file.originalFile.originalname,
         timestamp: new Date().toISOString(),
         processingTime: file.progress.totalDuration,
-        originalScore: file.results.scores?.overall_total_score || 0,
+        originalScore: file.results.scores?.total_score || 0,
         validation: file.results.validation,
       };
 
@@ -647,7 +647,7 @@ export class BulkResumeProcessor extends EventEmitter {
         files: batch.files.map((file) => ({
           filename: file.originalFile.originalname,
           status: file.status,
-          score: file.results.scores?.overall_total_score || null,
+          score: file.results.scores?.total_score || null,
           validation: file.results.validation?.verdict || null,
           processingTime: file.progress.totalDuration,
           retryCount: file.retryCount,
