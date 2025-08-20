@@ -102,7 +102,7 @@ export const apiConfig: APIConfig = {
 export const serverConfig: ServerConfig = {
   port: parseInt(process.env.PORT || "3000"),
   uploadDir: process.env.UPLOAD_DIR || "uploads",
-  outputDir: process.env.OUTPUT_DIR || "output",
+  outputDir: process.env.OUTPUT_DIR || "data/output",
   extractionMode: (process.env.EXTRACTION_MODE as "main" | "test") || "main", // Default to 'main'
 };
 
