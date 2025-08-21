@@ -86,49 +86,14 @@ export class OpenAIScorer {
     jobDescription: string,
     evaluationRubric: string
   ): string {
-    return `You are evaluating a candidate for a specific role. Score each criterion from 0-10 based on evidence in the resume.
+    return `
+    Directly score the candidate based on the evaluation rubric and the candidate resume data.
+    **EVALUATION RUBRIC:**
+    ${evaluationRubric}
 
-**SCORING GUIDELINES:**
-- 10 = Exceptional evidence and perfect match
-- 7-9 = Strong evidence and good match
-- 4-6 = Some evidence but limited match
-- 1-3 = Minimal evidence
-- 0 = No evidence or completely irrelevant
-
-**IMPORTANT:** Use the evaluation rubric provided below to determine the specific parameters and scoring criteria. Extract the parameters from the rubric and create a JSON structure with those exact parameters.
-
-**REQUIRED JSON STRUCTURE FORMAT:**
-{
-  "candidate_name": "CANDIDATE_NAME_FROM_RESUME",
-  "evaluation_scores": [
-    {
-      "parameter": "<PARAMETER_NAME_FROM_RUBRIC>",
-      "score": <integer 0-10>,
-      "reasoning": "<Evidence-based reasoning>"
-    }
-    // ... repeat for each parameter defined in the rubric
-  ],
-  "total_score": <sum of all scores>,
-  "max_possible_score": <number of parameters × 10>
-}
-
-**JOB DESCRIPTION:**
-${jobDescription}
-
-**EVALUATION RUBRIC:**
-${evaluationRubric}
-
-**CANDIDATE RESUME DATA:**
-${JSON.stringify(resumeData, null, 2)}
-
-**INSTRUCTIONS:**
-1. Carefully read the evaluation rubric to identify all the scoring parameters
-2. For each parameter in the rubric, evaluate the candidate and assign a score from 0-10
-3. Provide specific evidence from the resume to justify each score
-4. Calculate the total score and maximum possible score
-5. Return ONLY the JSON structure specified above with the parameters from the rubric
-
-Evaluate the candidate strictly based on evidence in the resume and the rubric criteria.`;
+    **CANDIDATE RESUME DATA:**
+    ${JSON.stringify(resumeData, null, 2)}
+`;
   }
 
   private validateScores(scores: any): void {
