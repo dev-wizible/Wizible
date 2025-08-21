@@ -1209,85 +1209,60 @@
         }
 
         initializeEventListeners() {
+          // Helper function to safely add event listeners
+          const safeAddEventListener = (id, event, handler) => {
+            const element = document.getElementById(id);
+            if (element) {
+              element.addEventListener(event, handler);
+            } else {
+              console.warn(`Element not found: ${id}`);
+            }
+          };
+
           // File upload
           const fileUploadArea = document.getElementById("fileUploadArea");
           const fileInput = document.getElementById("fileInput");
 
-          fileUploadArea.addEventListener("click", () => fileInput.click());
-          fileUploadArea.addEventListener(
-            "dragover",
-            this.handleDragOver.bind(this)
-          );
-          fileUploadArea.addEventListener(
-            "dragleave",
-            this.handleDragLeave.bind(this)
-          );
-          fileUploadArea.addEventListener("drop", this.handleDrop.bind(this));
-          fileInput.addEventListener(
-            "change",
-            this.handleFileSelect.bind(this)
-          );
+          if (fileUploadArea && fileInput) {
+            fileUploadArea.addEventListener("click", () => fileInput.click());
+            fileUploadArea.addEventListener(
+              "dragover",
+              this.handleDragOver.bind(this)
+            );
+            fileUploadArea.addEventListener(
+              "dragleave",
+              this.handleDragLeave.bind(this)
+            );
+            fileUploadArea.addEventListener("drop", this.handleDrop.bind(this));
+            fileInput.addEventListener(
+              "change",
+              this.handleFileSelect.bind(this)
+            );
+          }
 
           // Step buttons
-          document
-            .getElementById("convertToJson")
-            .addEventListener("click", this.convertToJson.bind(this));
-          document
-            .getElementById("saveConfig")
-            .addEventListener("click", this.saveConfiguration.bind(this));
-          document
-            .getElementById("startEvaluation")
-            .addEventListener("click", this.startEvaluation.bind(this));
+          safeAddEventListener("convertToJson", "click", this.convertToJson.bind(this));
+          safeAddEventListener("saveConfig", "click", this.saveConfiguration.bind(this));
+          safeAddEventListener("startEvaluation", "click", this.startEvaluation.bind(this));
 
           // Download buttons
-          document
-            .getElementById("downloadExtractions")
-            .addEventListener("click", () =>
-              this.downloadResults("extractions")
-            );
-          document
-            .getElementById("downloadScores")
-            .addEventListener("click", () => this.downloadResults("scores"));
-          document
-            .getElementById("downloadValidations")
-            .addEventListener("click", () =>
-              this.downloadResults("validations")
-            );
+          safeAddEventListener("downloadExtractions", "click", () => this.downloadResults("extractions"));
+          safeAddEventListener("downloadScores", "click", () => this.downloadResults("scores"));
+          safeAddEventListener("downloadValidations", "click", () => this.downloadResults("validations"));
 
           // Always-available download buttons
-          document
-            .getElementById("downloadExtractionsAlways")
-            .addEventListener("click", () =>
-              this.downloadResults("extractions")
-            );
-          document
-            .getElementById("downloadScoresAlways")
-            .addEventListener("click", () => this.downloadResults("scores"));
-          
-          // Anthropic validation button (commented out - not using for now)
-          // document
-          //   .getElementById("downloadValidationsAlways")
-          //   .addEventListener("click", () =>
-          //     this.downloadResults("validations")
-          //   );
+          safeAddEventListener("downloadExtractionsAlways", "click", () => this.downloadResults("extractions"));
+          safeAddEventListener("downloadScoresAlways", "click", () => this.downloadResults("scores"));
           
           // New Anthropic validation starter
-          document
-            .getElementById("startAnthropicValidation")
-            .addEventListener("click", this.startAnthropicValidation.bind(this));
+          safeAddEventListener("startAnthropicValidation", "click", this.startAnthropicValidation.bind(this));
             
           // Extraction mode switcher
-          document
-            .getElementById("extractionMode")
-            .addEventListener("change", this.switchExtractionMode.bind(this));
+          safeAddEventListener("extractionMode", "change", this.switchExtractionMode.bind(this));
 
           // Configuration fields
-          document
-            .getElementById("jobDescription")
-            .addEventListener("input", this.validateConfiguration.bind(this));
-          document
-            .getElementById("evaluationRubric")
-            .addEventListener("input", this.validateConfiguration.bind(this));
+          safeAddEventListener("jobDescription", "input", this.validateConfiguration.bind(this));
+          safeAddEventListener("evaluationRubric", "input", this.validateConfiguration.bind(this));
         }
 
         handleDragOver(e) {
@@ -2067,6 +2042,8 @@
 
           // Switch extraction mode
           async switchExtractionMode(event) {
+            console.log(`🔄 Switching extraction mode to: ${event.target.value}`);
+            
             try {
               const mode = event.target.value;
               const statusSpan = document.getElementById("extractionModeStatus");
@@ -2081,6 +2058,10 @@
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ mode })
               });
+              
+              if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+              }
               
               const result = await response.json();
               
@@ -2104,6 +2085,7 @@
                 this.addLog(`Failed to switch extraction mode: ${result.error}`, "error");
               }
             } catch (error) {
+              console.error("Extraction mode switch error:", error);
               const statusSpan = document.getElementById("extractionModeStatus");
               if (statusSpan) {
                 statusSpan.textContent = "❌ Error";
@@ -2500,8 +2482,10 @@
         }
       }
 
-      // Initialize the application
-      const processor = new ResumeProcessor();
+      // Initialize the application when DOM is ready
+      document.addEventListener('DOMContentLoaded', function() {
+        const processor = new ResumeProcessor();
+      });
     </script>
   </body>
 </html>

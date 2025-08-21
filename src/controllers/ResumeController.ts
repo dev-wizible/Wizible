@@ -769,7 +769,11 @@ export class ResumeController {
     try {
       const { mode } = req.body;
 
+      console.log(`🔄 POST /api/extraction-mode - Switching to: ${mode}`);
+      console.log(`📋 Request body:`, req.body);
+
       if (!mode || !["main", "test"].includes(mode)) {
+        console.log(`❌ Invalid mode: ${mode} (must be 'main' or 'test')`);
         res.status(400).json({
           success: false,
           error: "Mode must be 'main' or 'test'",
@@ -777,18 +781,27 @@ export class ResumeController {
         return;
       }
 
+      const oldMode = serverConfig.extractionMode;
+      const oldDir = getExtractionDir();
+
       setExtractionMode(mode);
+
+      const newDir = getExtractionDir();
+
+      console.log(`✅ Extraction mode switched successfully!`);
+      console.log(`   From: ${oldMode} → ${oldDir}`);
+      console.log(`   To:   ${mode} → ${newDir}`);
 
       res.status(200).json({
         success: true,
         data: {
           mode,
-          extractionDir: getExtractionDir(),
+          extractionDir: newDir,
           message: `Extraction mode switched to: ${mode}`,
         },
       });
     } catch (error) {
-      console.error("Error switching extraction mode:", error);
+      console.error("❌ Error switching extraction mode:", error);
       res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
@@ -799,15 +812,22 @@ export class ResumeController {
   // Get current extraction mode
   getExtractionMode = async (req: Request, res: Response): Promise<void> => {
     try {
+      const mode = serverConfig.extractionMode;
+      const dir = getExtractionDir();
+
+      console.log(
+        `📁 GET /api/extraction-mode - Current mode: ${mode} → ${dir}`
+      );
+
       res.status(200).json({
         success: true,
         data: {
-          mode: serverConfig.extractionMode,
-          extractionDir: getExtractionDir(),
+          mode,
+          extractionDir: dir,
         },
       });
     } catch (error) {
-      console.error("Error getting extraction mode:", error);
+      console.error("❌ Error getting extraction mode:", error);
       res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",

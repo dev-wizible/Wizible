@@ -119,10 +119,14 @@ export function getExtractionDir(): string {
 
 // Helper function to switch extraction mode
 export function setExtractionMode(mode: "main" | "test"): void {
+  const oldMode = serverConfig.extractionMode;
+  const oldDir = getExtractionDir();
+
   serverConfig.extractionMode = mode;
-  console.log(
-    `🔄 Extraction mode switched to: ${mode} (${getExtractionDir()})`
-  );
+  const newDir = getExtractionDir();
+
+  console.log(`🔄 Extraction mode switched: ${oldMode} → ${mode}`);
+  console.log(`📂 Directory changed: ${oldDir} → ${newDir}`);
 }
 
 export function validateConfig(): void {

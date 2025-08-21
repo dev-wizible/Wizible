@@ -5,7 +5,7 @@ import path from "path";
 import fs from "fs";
 import compression from "compression";
 import helmet from "helmet";
-import { validateConfig, serverConfig } from "./config";
+import { validateConfig, serverConfig, getExtractionDir } from "./config";
 import routes from "./routes";
 
 // Validate configuration
@@ -58,6 +58,11 @@ console.log(
   `💾 Storage config: ${serverConfig.outputDir} ${
     process.env.RENDER_PERSISTENT_DISK ? "(Persistent Disk)" : "(Ephemeral)"
   }`
+);
+
+// Log extraction mode configuration
+console.log(
+  `📁 Extraction mode: ${serverConfig.extractionMode} → ${getExtractionDir()}`
 );
 
 // Serve static files (the UI)
