@@ -923,12 +923,6 @@
               </div>
             </div>
           </div>
-          <div class="step-actions" style="margin-top: 20px">
-            <button id="downloadScoresAlways" class="btn btn-success" disabled>
-              <span>📥</span>
-              Download OpenAI Scores
-            </button>
-          </div>
           
           <!-- Anthropic Validation Section (appears after OpenAI completion) -->
           <div id="anthropicValidationSection" class="evaluation-progress hidden" style="margin-top: 20px;">
@@ -1039,14 +1033,6 @@
             </div>
           </div>
           <div class="step-actions" style="margin-top: 20px">
-            <button
-              id="downloadValidationsAlways"
-              class="btn btn-success"
-              disabled
-            >
-              <span>📥</span>
-              Download Anthropic Validations
-            </button>
           </div>
         </div>
         -->
@@ -1509,12 +1495,12 @@
         }
 
         startConversionMonitoring() {
-          // Monitor conversion progress every 3 seconds
+          // Monitor conversion progress every 2 seconds for more responsive updates
           this.conversionProgressInterval = setInterval(async () => {
             if (this.currentBatchId) {
               await this.updateConversionStatus();
             }
-          }, 3000);
+          }, 2000);
         }
 
         stopConversionMonitoring() {
@@ -1537,16 +1523,26 @@
             if (!result.success) return;
 
             const metrics = result.data.metrics;
-            const completed = metrics.completed || metrics.extracted || 0;
+            
+            // During extraction phase, track extraction progress specifically
+            const extracting = metrics.extracting || 0;
+            const extracted = metrics.extracted || 0;
             const failed = metrics.failed || 0;
             const total = metrics.total || this.files.length;
-
+            
+            // Calculate progress: extracted + failed = processed files
+            const processed = extracted + failed;
+            
             this.updateConversionProgress(
-              completed + failed,
+              processed,
               total,
-              completed,
+              extracted,
               failed
             );
+
+            // Log detailed progress for debugging
+            console.log(`📊 Extraction Progress: ${processed}/${total} processed (${extracted} success, ${failed} failed, ${extracting} in progress)`);
+            
           } catch (error) {
             console.warn("Error updating conversion status:", error);
           }

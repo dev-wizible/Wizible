@@ -125,6 +125,8 @@ export class BulkResumeProcessor extends EventEmitter {
           }`
         );
         await this.extractFile(batch, file);
+        // Update metrics immediately after each file is processed
+        this.updateMetrics(batch);
       })
     );
 

@@ -102,7 +102,10 @@ export const apiConfig: APIConfig = {
 export const serverConfig: ServerConfig = {
   port: parseInt(process.env.PORT || "3000"),
   uploadDir: process.env.UPLOAD_DIR || "uploads",
-  outputDir: process.env.OUTPUT_DIR || "data/output",
+  // Use persistent disk path if available (Render), otherwise local
+  outputDir:
+    process.env.OUTPUT_DIR ||
+    (process.env.RENDER_PERSISTENT_DISK ? "/data/output" : "data/output"),
   extractionMode: (process.env.EXTRACTION_MODE as "main" | "test") || "main", // Default to 'main'
 };
 

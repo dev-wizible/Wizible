@@ -53,6 +53,13 @@ requiredDirs.forEach((dir) => {
   }
 });
 
+// Log storage configuration
+console.log(
+  `💾 Storage config: ${serverConfig.outputDir} ${
+    process.env.RENDER_PERSISTENT_DISK ? "(Persistent Disk)" : "(Ephemeral)"
+  }`
+);
+
 // Serve static files (the UI)
 app.use(express.static("public"));
 
