@@ -20,7 +20,7 @@ export class OpenAIScorer {
     });
   }
 
-  async scoreResume(request: ScoringRequest): Promise<ResumeScores> {
+  async scoreResume(request: ScoringRequest): Promise<any> {
     const { resumeData, jobDescription, evaluationRubric, resumeFilename } =
       request;
 
@@ -39,8 +39,7 @@ export class OpenAIScorer {
           messages: [
             {
               role: "system",
-              content:
-                "You are an expert recruiter and evaluator. You must evaluate candidates against specific job criteria and return structured JSON responses only. Be objective and evidence-based in your scoring.",
+              content: "You are an expert recruiter and evaluator. ",
             },
             {
               role: "user",
@@ -57,11 +56,25 @@ export class OpenAIScorer {
           throw new Error("No response from OpenAI");
         }
 
-        const scores = JSON.parse(content) as ResumeScores;
+        const scores = JSON.parse(content);
+
+        // Fallback: if candidate_name is missing or empty, try to extract from filename
+        if (
+          !scores.candidate_name ||
+          (typeof scores.candidate_name === "string" &&
+            scores.candidate_name.trim() === "")
+        ) {
+          scores.candidate_name = this.extractNameFromFilename(resumeFilename);
+        }
+
         this.validateScores(scores);
 
+        const scoreInfo =
+          scores.total_score !== undefined
+            ? `${scores.total_score}/${scores.max_possible_score}`
+            : "custom format";
         console.log(
-          `✅ OpenAI scoring completed for ${resumeFilename}: ${scores.total_score}/${scores.max_possible_score}`
+          `✅ OpenAI scoring completed for ${resumeFilename}: ${scoreInfo}`
         );
         return scores;
       } catch (error) {
@@ -87,66 +100,89 @@ export class OpenAIScorer {
     evaluationRubric: string
   ): string {
     return `
-    Directly score the candidate based on the evaluation rubric and the candidate resume data.
-    **EVALUATION RUBRIC:**
-    ${evaluationRubric}
+You are an expert recruiter and evaluator. Analyze the candidate's resume against the provided evaluation rubric and return a structured JSON response.
 
-    **CANDIDATE RESUME DATA:**
-    ${JSON.stringify(resumeData, null, 2)}
+**EVALUATION RUBRIC:**
+${evaluationRubric}
+
+**CANDIDATE RESUME DATA:**
+${JSON.stringify(resumeData, null, 2)}
+
+**INSTRUCTIONS:**
+1. Carefully read the evaluation rubric to understand:
+   - What criteria to evaluate
+   - What scoring format to use (Yes/No, numerical, categories, etc.)
+   - What JSON structure is expected in the output
+
+2. If the rubric specifies a JSON output format, follow that EXACT format
+3. If the rubric doesn't specify a format, use this default structure:
+   {
+     "candidate_name": "Full name from resume data",
+     "evaluation_scores": [
+       {
+         "parameter": "Criterion name",
+         "score": "Score according to rubric format",
+         "reasoning": "Detailed explanation"
+       }
+     ]
+   }
+
+4. Extract candidate name from resumeData.basics.name if available
+5. Be objective and evidence-based in your evaluation
+6. Provide detailed reasoning for each score
+7. Follow the rubric's scoring system exactly (don't convert Yes/No to numbers, etc.)
+
+**CRITICAL:** Your response must be valid JSON that matches the format specified in the evaluation rubric. If the rubric shows an example JSON structure, replicate that structure exactly.
 `;
   }
 
   private validateScores(scores: any): void {
-    if (!scores.candidate_name) {
-      throw new Error("Invalid scores: missing candidate_name");
+    // Basic validation that we have a valid JSON object
+    if (!scores || typeof scores !== "object") {
+      throw new Error("Invalid scores: response is not a valid JSON object");
     }
 
-    if (!scores.evaluation_scores || !Array.isArray(scores.evaluation_scores)) {
+    // Check for candidate_name (fallback will handle if missing)
+    if (!scores.candidate_name && !scores.hasOwnProperty("candidate_name")) {
+      // If no candidate_name field exists at all, this might be a different format
+      console.warn("No candidate_name field found in response, using fallback");
+    }
+
+    // Dynamic validation - accept any structure that looks reasonable
+    const keys = Object.keys(scores);
+    if (keys.length === 0) {
+      throw new Error("Invalid scores: empty response object");
+    }
+
+    // Log what we received for debugging
+    console.log(
+      `✅ Received scoring response with ${keys.length} fields:`,
+      keys.slice(0, 5)
+    );
+
+    // Count evaluation criteria (could be in various formats)
+    let criteriaCount = 0;
+    if (scores.evaluation_scores && Array.isArray(scores.evaluation_scores)) {
+      criteriaCount = scores.evaluation_scores.length;
+    } else {
+      // Count direct criteria fields (exclude meta fields like candidate_name, total_score, etc.)
+      const metaFields = [
+        "candidate_name",
+        "total_score",
+        "max_possible_score",
+        "timestamp",
+      ];
+      criteriaCount = keys.filter((key) => !metaFields.includes(key)).length;
+    }
+
+    if (criteriaCount === 0) {
       throw new Error(
-        "Invalid scores: missing or invalid evaluation_scores array"
-      );
-    }
-
-    if (scores.evaluation_scores.length === 0) {
-      throw new Error(
-        "Invalid scores: evaluation_scores array cannot be empty"
-      );
-    }
-
-    // Validate each evaluation item and calculate total
-    let calculatedTotal = 0;
-
-    for (const evaluation of scores.evaluation_scores) {
-      this.validateCriterion(evaluation);
-      calculatedTotal += evaluation.score;
-    }
-
-    const expectedMaxScore = scores.evaluation_scores.length * 10;
-
-    // Validate and correct totals if needed
-    if (scores.total_score !== calculatedTotal) {
-      console.warn(
-        `Total score mismatch: calculated ${calculatedTotal}, received ${scores.total_score}`
-      );
-      scores.total_score = calculatedTotal;
-    }
-
-    if (scores.max_possible_score !== expectedMaxScore) {
-      console.warn(
-        `Max possible score mismatch: calculated ${expectedMaxScore}, received ${scores.max_possible_score}`
-      );
-      scores.max_possible_score = expectedMaxScore;
-    }
-
-    // Validate score ranges
-    if (scores.total_score < 0 || scores.total_score > expectedMaxScore) {
-      throw new Error(
-        `Invalid total_score: ${scores.total_score} (expected 0-${expectedMaxScore})`
+        "Invalid scores: no evaluation criteria found in response"
       );
     }
 
     console.log(
-      `✅ Validated scores: ${scores.total_score}/${expectedMaxScore} for ${scores.evaluation_scores.length} criteria`
+      `✅ Validated scoring response with ${criteriaCount} evaluation criteria`
     );
   }
 
@@ -185,5 +221,20 @@ export class OpenAIScorer {
 
   private delay(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  private extractNameFromFilename(filename: string): string {
+    // Remove file extension
+    const nameWithoutExt = filename.replace(/\.[^/.]+$/, "");
+
+    // Clean up common patterns in resume filenames
+    const cleanName = nameWithoutExt
+      .replace(/resume|cv|curriculum|vitae/gi, "") // Remove common resume keywords
+      .replace(/[-_]/g, " ") // Replace dashes and underscores with spaces
+      .replace(/\s+/g, " ") // Normalize multiple spaces to single spaces
+      .trim();
+
+    // If we have a meaningful name after cleaning, use it; otherwise use the original filename
+    return cleanName.length > 2 ? cleanName : nameWithoutExt;
   }
 }
