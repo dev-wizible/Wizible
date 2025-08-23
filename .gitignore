@@ -6,3 +6,4 @@ output/
 *.log
 .DS_Store
 get-refresh-token.js
+supabase-schema.sql

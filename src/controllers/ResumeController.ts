@@ -208,6 +208,19 @@ export class ResumeController {
         return;
       }
 
+      // Debug logging to help diagnose progress issues
+      console.log(`📊 Progress API called for batch ${batchId}:`, {
+        status: progress.status,
+        metrics: progress.metrics,
+        currentFiles: Object.keys(progress.currentFiles).map(
+          (key) =>
+            `${key}: ${
+              progress.currentFiles[key as keyof typeof progress.currentFiles]
+                .length
+            }`
+        ),
+      });
+
       res.status(200).json({
         success: true,
         data: progress,

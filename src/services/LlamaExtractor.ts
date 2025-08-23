@@ -44,7 +44,10 @@ export class LlamaExtractor {
         const uploadedFile = await this.uploadFileWithRetry(filePath, attempt);
 
         // Start extraction job
-        const job = await this.startExtractionJobWithRetry(uploadedFile.id, attempt);
+        const job = await this.startExtractionJobWithRetry(
+          uploadedFile.id,
+          attempt
+        );
 
         // Poll for completion
         const result = await this.pollJobCompletion(job.id);
@@ -52,18 +55,43 @@ export class LlamaExtractor {
         return result;
       } catch (error) {
         lastError = error as Error;
-        console.warn(`⚠️ LlamaIndex attempt ${attempt}/${config.retries.maxAttempts} failed: ${(error as Error).message}`);
+        const errorMsg = (error as Error).message;
+
+        // Check for network connectivity issues
+        if (
+          errorMsg.includes("ENOTFOUND") ||
+          errorMsg.includes("ECONNRESET") ||
+          errorMsg.includes("ECONNREFUSED")
+        ) {
+          console.warn(
+            `🌐 Network error on attempt ${attempt}/${config.retries.maxAttempts}: ${errorMsg}`
+          );
+        } else {
+          console.warn(
+            `⚠️ LlamaIndex attempt ${attempt}/${config.retries.maxAttempts} failed: ${errorMsg}`
+          );
+        }
 
         if (attempt < config.retries.maxAttempts) {
-          // Exponential backoff with jitter
-          const delay = this.calculateBackoffDelay(attempt);
-          console.log(`⏳ Waiting ${delay}ms before retry...`);
+          // Longer delays for network errors
+          const delay =
+            errorMsg.includes("ENOTFOUND") || errorMsg.includes("ECONNRESET")
+              ? this.calculateBackoffDelay(attempt) * 2 // Double delay for network errors
+              : this.calculateBackoffDelay(attempt);
+
+          console.log(
+            `⏳ Waiting ${delay}ms before retry (${Math.round(
+              delay / 1000
+            )}s)...`
+          );
           await this.delay(delay);
         }
       }
     }
 
-    throw new Error(`LlamaIndex extraction failed after ${config.retries.maxAttempts} attempts: ${lastError?.message}`);
+    throw new Error(
+      `LlamaIndex extraction failed after ${config.retries.maxAttempts} attempts: ${lastError?.message}`
+    );
   }
 
   private async enforceRateLimit(): Promise<void> {
@@ -89,12 +117,18 @@ export class LlamaExtractor {
     const baseDelay = config.retries.delay;
     const exponentialDelay = baseDelay * Math.pow(2, attempt - 1);
     const jitter = Math.random() * 1000; // Random jitter up to 1 second
-    const totalDelay = Math.min(exponentialDelay + jitter, config.rateLimit.maxRetryDelay);
+    const totalDelay = Math.min(
+      exponentialDelay + jitter,
+      config.rateLimit.maxRetryDelay
+    );
 
     return Math.floor(totalDelay);
   }
 
-  private async uploadFileWithRetry(filePath: string, attempt: number): Promise<{ id: string }> {
+  private async uploadFileWithRetry(
+    filePath: string,
+    attempt: number
+  ): Promise<{ id: string }> {
     try {
       await this.enforceRateLimit();
 
@@ -113,13 +147,18 @@ export class LlamaExtractor {
     } catch (error: any) {
       if (error.response?.status === 429) {
         // Rate limit hit - throw with specific message
-        throw new Error(`Rate limit exceeded on upload (attempt ${attempt}). LlamaIndex API limit reached.`);
+        throw new Error(
+          `Rate limit exceeded on upload (attempt ${attempt}). LlamaIndex API limit reached.`
+        );
       }
       throw error;
     }
   }
 
-  private async startExtractionJobWithRetry(fileId: string, attempt: number): Promise<{ id: string }> {
+  private async startExtractionJobWithRetry(
+    fileId: string,
+    attempt: number
+  ): Promise<{ id: string }> {
     try {
       await this.enforceRateLimit();
 
@@ -141,7 +180,9 @@ export class LlamaExtractor {
       return response.data;
     } catch (error: any) {
       if (error.response?.status === 429) {
-        throw new Error(`Rate limit exceeded on job start (attempt ${attempt}). LlamaIndex API limit reached.`);
+        throw new Error(
+          `Rate limit exceeded on job start (attempt ${attempt}). LlamaIndex API limit reached.`
+        );
       }
       throw error;
     }
@@ -155,16 +196,18 @@ export class LlamaExtractor {
       await this.enforceRateLimit();
       const response = await axios.get(
         `${this.baseUrl}/extraction/extraction-agents/by-name/${agentName}`,
-        { 
+        {
           headers: { Authorization: `Bearer ${this.apiKey}` },
-          timeout: 30000
+          timeout: 30000,
         }
       );
       return response.data.id;
     } catch (error: any) {
       if (error.response?.status !== 404) {
         if (error.response?.status === 429) {
-          throw new Error("Rate limit exceeded while checking for existing agent");
+          throw new Error(
+            "Rate limit exceeded while checking for existing agent"
+          );
         }
         throw error;
       }
@@ -182,7 +225,10 @@ export class LlamaExtractor {
             type: "object",
             required: ["name", "email", "phone", "location"],
             properties: {
-              name: { type: "string", description: "Full name of the candidate" },
+              name: {
+                type: "string",
+                description: "Full name of the candidate",
+              },
               email: { type: "string", description: "Email address" },
               phone: { type: "string", description: "Phone number" },
               location: {
@@ -194,9 +240,15 @@ export class LlamaExtractor {
                   country: { type: "string" },
                 },
               },
-              summary: { type: "string", description: "Professional summary or objective" },
+              summary: {
+                type: "string",
+                description: "Professional summary or objective",
+              },
               linkedin: { type: "string", description: "LinkedIn profile URL" },
-              website: { type: "string", description: "Personal website or portfolio" },
+              website: {
+                type: "string",
+                description: "Personal website or portfolio",
+              },
             },
           },
           skills: {
@@ -206,10 +258,10 @@ export class LlamaExtractor {
               required: ["category", "keywords"],
               properties: {
                 category: { type: "string", description: "Skill category" },
-                keywords: { 
-                  type: "array", 
+                keywords: {
+                  type: "array",
                   items: { type: "string" },
-                  description: "List of specific skills"
+                  description: "List of specific skills",
                 },
                 level: { type: "string", description: "Proficiency level" },
               },
@@ -223,17 +275,32 @@ export class LlamaExtractor {
               properties: {
                 company: { type: "string", description: "Company name" },
                 position: { type: "string", description: "Job title" },
-                startDate: { type: "string", description: "Start date (YYYY-MM format)" },
-                endDate: { type: "string", description: "End date (YYYY-MM format or 'Present')" },
-                location: { type: "string", description: "Job location" },
-                responsibilities: { type: "string", description: "Key responsibilities and duties" },
-                achievements: { 
-                  type: "array", 
-                  items: { type: "string" },
-                  description: "Notable achievements and impacts"
+                startDate: {
+                  type: "string",
+                  description: "Start date (YYYY-MM format)",
                 },
-                teamSize: { type: "string", description: "Size of team managed (if applicable)" },
-                budget: { type: "string", description: "Budget managed (if applicable)" },
+                endDate: {
+                  type: "string",
+                  description: "End date (YYYY-MM format or 'Present')",
+                },
+                location: { type: "string", description: "Job location" },
+                responsibilities: {
+                  type: "string",
+                  description: "Key responsibilities and duties",
+                },
+                achievements: {
+                  type: "array",
+                  items: { type: "string" },
+                  description: "Notable achievements and impacts",
+                },
+                teamSize: {
+                  type: "string",
+                  description: "Size of team managed (if applicable)",
+                },
+                budget: {
+                  type: "string",
+                  description: "Budget managed (if applicable)",
+                },
               },
             },
           },
@@ -243,12 +310,24 @@ export class LlamaExtractor {
               type: "object",
               required: ["institution", "degree"],
               properties: {
-                institution: { type: "string", description: "Educational institution name" },
-                degree: { type: "string", description: "Degree type and field of study" },
+                institution: {
+                  type: "string",
+                  description: "Educational institution name",
+                },
+                degree: {
+                  type: "string",
+                  description: "Degree type and field of study",
+                },
                 field: { type: "string", description: "Field of study" },
-                graduationDate: { type: "string", description: "Graduation date (YYYY format)" },
+                graduationDate: {
+                  type: "string",
+                  description: "Graduation date (YYYY format)",
+                },
                 gpa: { type: "number", description: "GPA if mentioned" },
-                honors: { type: "string", description: "Academic honors or distinctions" },
+                honors: {
+                  type: "string",
+                  description: "Academic honors or distinctions",
+                },
               },
             },
           },
@@ -273,7 +352,10 @@ export class LlamaExtractor {
                 title: { type: "string", description: "Award title" },
                 issuer: { type: "string", description: "Award issuer" },
                 date: { type: "string", description: "Award date" },
-                description: { type: "string", description: "Award description" },
+                description: {
+                  type: "string",
+                  description: "Award description",
+                },
               },
             },
           },
@@ -283,7 +365,10 @@ export class LlamaExtractor {
               type: "object",
               properties: {
                 language: { type: "string", description: "Language name" },
-                proficiency: { type: "string", description: "Proficiency level" },
+                proficiency: {
+                  type: "string",
+                  description: "Proficiency level",
+                },
               },
             },
           },
@@ -312,32 +397,32 @@ export class LlamaExtractor {
   }
 
   private async pollJobCompletion(jobId: string): Promise<any> {
-    const maxAttempts = 60; // 10 minutes with 10s intervals
+    const maxAttempts = 120; // 4 minutes with 2s intervals (MAXIMUM SPEED)
     let attempts = 0;
 
     while (attempts < maxAttempts) {
       try {
-        // Rate limit polling as well
-        await this.delay(5000); // 5 second intervals for polling
+        // MAXIMUM SPEED: Very fast polling for 30 concurrent
+        await this.delay(2000); // 2 second intervals for polling (MAXIMUM SPEED)
 
         const statusResponse = await axios.get(
           `${this.baseUrl}/extraction/jobs/${jobId}`,
-          { 
+          {
             headers: { Authorization: `Bearer ${this.apiKey}` },
-            timeout: 30000
+            timeout: 30000,
           }
         );
 
         const status = statusResponse.data.status;
 
         if (status === "SUCCESS") {
-          // Get the result
-          await this.delay(1000); // Small delay before getting result
+          // Get the result immediately (removed delay)
+          // await this.delay(1000); // Removed delay for speed
           const resultResponse = await axios.get(
             `${this.baseUrl}/extraction/jobs/${jobId}/result`,
-            { 
+            {
               headers: { Authorization: `Bearer ${this.apiKey}` },
-              timeout: 30000
+              timeout: 30000,
             }
           );
           return resultResponse.data;
@@ -356,17 +441,17 @@ export class LlamaExtractor {
       } catch (error: any) {
         if (error.response?.status === 429) {
           console.warn("⚠️ Rate limit hit during polling, waiting longer...");
-          await this.delay(15000); // Wait 15 seconds if rate limited
+          await this.delay(3000); // Wait 3 seconds if rate limited (MAXIMUM SPEED)
         } else if (attempts >= maxAttempts - 1) {
           throw error;
         } else {
-          await this.delay(10000); // Regular polling interval
+          await this.delay(2500); // Very fast polling interval (MAXIMUM SPEED)
         }
         attempts++;
       }
     }
 
-    throw new Error("Extraction job timeout after 10 minutes");
+    throw new Error("Extraction job timeout after 4 minutes");
   }
 
   private delay(ms: number): Promise<void> {

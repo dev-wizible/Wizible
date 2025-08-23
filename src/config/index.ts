@@ -44,6 +44,10 @@ export interface APIConfig {
     model: string;
     maxTokens: number;
   };
+  supabase: {
+    url: string;
+    anonKey: string;
+  };
 }
 
 export interface ServerConfig {
@@ -53,28 +57,28 @@ export interface ServerConfig {
   extractionMode: "main" | "test"; // Switch between main and test extraction folders
 }
 
-// CONSERVATIVE SETTINGS TO AVOID RATE LIMITS
+// BALANCED HIGH-RELIABILITY SETTINGS (Prioritizes 100% success with reasonable speed)
 export const config: ProcessingConfig = {
   concurrent: {
-    extraction: parseInt(process.env.CONCURRENT_EXTRACTIONS || "2"), // Reduced from 8 to 2
-    scoring: parseInt(process.env.CONCURRENT_SCORING || "3"),
-    validation: parseInt(process.env.CONCURRENT_VALIDATIONS || "2"),
+    extraction: parseInt(process.env.CONCURRENT_EXTRACTIONS || "30"), // MAXIMUM SPEED: 30 concurrent extractions
+    scoring: parseInt(process.env.CONCURRENT_SCORING || "20"), // High concurrency for scoring
+    validation: parseInt(process.env.CONCURRENT_VALIDATIONS || "15"), // High concurrency for validation
   },
   timeouts: {
-    extraction: 300000, // 5 minutes per extraction (increased)
-    scoring: 120000, // 2 minutes
-    validation: 150000, // 2.5 minutes
+    extraction: 180000, // 3 minutes per extraction (reduced for speed)
+    scoring: 60000, // 1 minute for scoring (faster)
+    validation: 90000, // 1.5 minutes for validation (faster)
   },
   retries: {
-    maxAttempts: 3, // Increased retry attempts
-    delay: 5000, // 5 second initial delay
+    maxAttempts: 2, // Reduced retries for maximum speed
+    delay: 1000, // 1 second initial delay for speed
     exponentialBackoff: true,
   },
   rateLimit: {
-    llamaDelay: 2000, // 2 second delay between LlamaIndex calls
-    openaiDelay: 1000, // 1 second delay between OpenAI calls
-    anthropicDelay: 1500, // 1.5 second delay between Anthropic calls
-    maxRetryDelay: 60000, // Maximum 60 second delay for retries
+    llamaDelay: 500, // MAXIMUM SPEED: Minimal delays for 30 concurrent
+    openaiDelay: 400, // Minimal delay for high throughput
+    anthropicDelay: 500, // Minimal delay for high throughput
+    maxRetryDelay: 30000, // 30 second max retry delay for speed
   },
   files: {
     maxSize: 10 * 1024 * 1024, // 10MB per file
@@ -96,6 +100,10 @@ export const apiConfig: APIConfig = {
     apiKey: process.env.ANTHROPIC_API_KEY || "",
     model: process.env.ANTHROPIC_MODEL || "claude-3-5-sonnet-20240620",
     maxTokens: 1000,
+  },
+  supabase: {
+    url: process.env.SUPABASE_URL || "",
+    anonKey: process.env.SUPABASE_ANON_KEY || "",
   },
 };
 
@@ -142,17 +150,20 @@ export function validateConfig(): void {
   }
 
   console.log("✅ Configuration validated");
-  console.log(`🔧 CONSERVATIVE SETTINGS (to avoid rate limits):`);
+  console.log(`⚡ MAXIMUM SPEED SETTINGS (30 concurrent extractions):`);
   console.log(
-    `   • Extractions: ${config.concurrent.extraction} concurrent (reduced for rate limiting)`
+    `   • Extractions: ${config.concurrent.extraction} concurrent (MAXIMUM SPEED)`
   );
   console.log(`   • Scoring: ${config.concurrent.scoring} concurrent`);
   console.log(`   • Validation: ${config.concurrent.validation} concurrent`);
   console.log(
-    `   • LlamaIndex delay: ${config.rateLimit.llamaDelay}ms between calls`
+    `   • LlamaIndex delay: ${config.rateLimit.llamaDelay}ms between calls (MAXIMUM SPEED)`
   );
   console.log(
     `   • Retry attempts: ${config.retries.maxAttempts} with exponential backoff`
   );
   console.log(`📊 Max batch size: ${config.files.maxBatch} resumes`);
+  console.log(
+    `⚡ GOAL: 100% extraction success for 700 resumes in 1-1.5 hours`
+  );
 }

@@ -7,6 +7,7 @@ import PQueue from "p-queue";
 import { LlamaExtractor } from "./LlamaExtractor";
 import { OpenAIScorer } from "./OpenAIScorer";
 import { AnthropicValidator } from "./AnthropicValidator";
+import { SupabaseStorage } from "./SupabaseStorage";
 import { config, serverConfig, getExtractionDir } from "../config";
 import {
   BatchJob,
@@ -21,6 +22,7 @@ export class BulkResumeProcessor extends EventEmitter {
   private extractor: LlamaExtractor;
   private scorer: OpenAIScorer;
   private validator: AnthropicValidator;
+  private supabase: SupabaseStorage;
 
   // Processing queues with conservative concurrency
   private scoringQueue: PQueue;
@@ -32,6 +34,7 @@ export class BulkResumeProcessor extends EventEmitter {
     this.extractor = new LlamaExtractor();
     this.scorer = new OpenAIScorer();
     this.validator = new AnthropicValidator();
+    this.supabase = new SupabaseStorage();
 
     // Conservative queue settings to avoid rate limits
     this.scoringQueue = new PQueue({
@@ -53,13 +56,27 @@ export class BulkResumeProcessor extends EventEmitter {
 
   async initialize(): Promise<void> {
     await this.extractor.initialize();
+
+    // Initialize Supabase (optional - will work without it)
+    try {
+      await this.supabase.initialize();
+      console.log("✅ Supabase storage initialized");
+    } catch (error) {
+      console.warn(
+        "⚠️ Supabase initialization failed - continuing without cloud storage:",
+        error instanceof Error ? error.message : error
+      );
+    }
+
     console.log(
-      "✅ BulkResumeProcessor initialized with rate-limited settings"
+      "✅ BulkResumeProcessor initialized with BALANCED HIGH-RELIABILITY settings"
     );
-    console.log("⚠️ Using conservative concurrency to avoid API rate limits");
+    console.log(
+      "🎯 Prioritizing 100% extraction success with reasonable speed"
+    );
   }
 
-  // Step 1: Extract resumes using LlamaIndex (with rate limiting)
+  // Step 1: Extract resumes using LlamaIndex (HIGH-PERFORMANCE MODE)
   async extractResumes(files: Express.Multer.File[]): Promise<string> {
     const batchId = uuidv4();
 
@@ -68,6 +85,19 @@ export class BulkResumeProcessor extends EventEmitter {
         `Batch size ${files.length} exceeds maximum ${config.files.maxBatch}`
       );
     }
+
+    // Log performance expectations with balanced settings
+    const estimatedTimeMinutes = Math.ceil(
+      files.length / (config.concurrent.extraction * 0.3)
+    ); // ~0.3 resumes per minute per thread (more conservative)
+    console.log(
+      `🎯 RELIABILITY ESTIMATE: ${files.length} resumes should complete in ~${estimatedTimeMinutes} minutes`
+    );
+    console.log(
+      `✅ TARGET: 100% extraction success with ${
+        files.length <= 700 ? "3-4 hour completion" : "proportional timing"
+      }`
+    );
 
     const resumeFiles: ResumeFile[] = files.map((file) => ({
       id: uuidv4(),
@@ -84,6 +114,7 @@ export class BulkResumeProcessor extends EventEmitter {
       files: resumeFiles,
       metrics: this.initializeMetrics(files.length),
       createdAt: new Date(),
+      startedAt: new Date(), // Set startedAt during extraction phase for proper timing
     };
 
     this.jobs.set(batchId, batch);
@@ -95,7 +126,16 @@ export class BulkResumeProcessor extends EventEmitter {
       `⚠️ Using ${config.concurrent.extraction} concurrent extractions with ${config.rateLimit.llamaDelay}ms delays`
     );
 
-    // Process extractions with VERY conservative concurrency
+    // Update initial metrics to ensure progress tracking works immediately
+    this.updateMetrics(batch);
+    console.log(
+      `📊 Initial metrics set - Total: ${batch.metrics.total}, Pending: ${batch.metrics.pending}`
+    );
+    console.log(
+      `🔗 Progress tracking available at: /api/batch/${batchId}/progress`
+    );
+
+    // Process extractions synchronously (wait for completion before API response)
     await this.processExtractions(batch);
 
     return batchId;
@@ -111,11 +151,12 @@ export class BulkResumeProcessor extends EventEmitter {
     });
 
     console.log(
-      `🐌 Processing ${batch.files.length} files with conservative rate limiting...`
+      `🎯 Processing ${batch.files.length} files with BALANCED HIGH-RELIABILITY settings...`
     );
     console.log(
       `📊 Concurrency: ${config.concurrent.extraction}, Delay: ${config.rateLimit.llamaDelay}ms`
     );
+    console.log(`✅ TARGET: 100% extraction success, reasonable timing`);
 
     const promises = batch.files.map((file, index) =>
       extractionQueue.add(async () => {
@@ -127,6 +168,14 @@ export class BulkResumeProcessor extends EventEmitter {
         await this.extractFile(batch, file);
         // Update metrics immediately after each file is processed
         this.updateMetrics(batch);
+
+        // Log progress every few files for visibility
+        if ((index + 1) % 5 === 0 || index === batch.files.length - 1) {
+          const processed = batch.metrics.extracted + batch.metrics.failed;
+          console.log(
+            `📊 Progress: ${processed}/${batch.metrics.total} files processed (${batch.metrics.extracted} success, ${batch.metrics.failed} failed)`
+          );
+        }
       })
     );
 
@@ -205,6 +254,10 @@ export class BulkResumeProcessor extends EventEmitter {
       file.status = "extracted";
 
       await this.saveExtractionResult(file);
+
+      // Upload to Supabase
+      await this.uploadToSupabase(file, "extraction");
+
       console.log(`✅ Extracted: ${file.originalFile.originalname}`);
     } catch (error: any) {
       // Enhanced error handling for rate limits
@@ -222,7 +275,11 @@ export class BulkResumeProcessor extends EventEmitter {
         await this.handleFileError(batch, file, error, "extraction");
       }
     } finally {
-      this.cleanupFile(file.originalFile.path);
+      // Don't cleanup file immediately - let it remain for potential retries
+      // Only cleanup after all retries are exhausted or success
+      if (file.status === "extracted" || file.status === "failed") {
+        this.cleanupFile(file.originalFile.path);
+      }
       this.updateMetrics(batch);
     }
   }
@@ -235,18 +292,25 @@ export class BulkResumeProcessor extends EventEmitter {
     file.retryCount++;
 
     if (file.retryCount <= config.retries.maxAttempts) {
-      // Much longer delay for rate limit retries
+      // Progressive delays for rate limit retries - wait longer each time
+      const baseDelay = 10000; // Start with 10 seconds
       const delay = Math.min(
-        config.rateLimit.llamaDelay * Math.pow(2, file.retryCount),
+        baseDelay * Math.pow(2, file.retryCount - 1), // 10s, 20s, 40s
         config.rateLimit.maxRetryDelay
       );
 
       console.warn(
-        `⏳ Rate limit retry ${file.retryCount}/${config.retries.maxAttempts} for ${file.originalFile.originalname} in ${delay}ms`
+        `⏳ Rate limit retry ${file.retryCount}/${
+          config.retries.maxAttempts
+        } for ${file.originalFile.originalname} in ${delay}ms (${Math.round(
+          delay / 1000
+        )}s)`
       );
 
       setTimeout(async () => {
         if (batch.status === "extracting") {
+          // Reset file status back to pending for retry
+          file.status = "pending";
           await this.extractFile(batch, file);
         }
       }, delay);
@@ -256,6 +320,8 @@ export class BulkResumeProcessor extends EventEmitter {
       console.error(
         `🚫 Rate limit permanently failed for ${file.originalFile.originalname}`
       );
+      // Now we can cleanup the file since all retries are exhausted
+      this.cleanupFile(file.originalFile.path);
     }
   }
 
@@ -422,6 +488,10 @@ export class BulkResumeProcessor extends EventEmitter {
       file.status = "scored";
 
       await this.saveScoreResult(file);
+
+      // Upload to Supabase
+      await this.uploadToSupabase(file, "scores");
+
       console.log(
         `🎯 Scored: ${file.originalFile.originalname} (${scores.total_score}/${scores.max_possible_score})`
       );
@@ -455,6 +525,10 @@ export class BulkResumeProcessor extends EventEmitter {
       file.status = "completed";
 
       await this.saveValidationResult(file);
+
+      // Upload to Supabase
+      await this.uploadToSupabase(file, "validation");
+
       console.log(
         `✅ Validated: ${file.originalFile.originalname} - ${validation.verdict}`
       );
@@ -482,11 +556,19 @@ export class BulkResumeProcessor extends EventEmitter {
         : config.retries.delay;
 
       console.warn(
-        `⚠️ ${stage} retry ${file.retryCount}/${config.retries.maxAttempts} for ${file.originalFile.originalname} in ${delay}ms`
+        `⚠️ ${stage} retry ${file.retryCount}/${
+          config.retries.maxAttempts
+        } for ${file.originalFile.originalname} in ${delay}ms (${Math.round(
+          delay / 1000
+        )}s)`
       );
 
       setTimeout(() => {
-        if (batch.status === "processing") {
+        if (stage === "extraction" && batch.status === "extracting") {
+          // Reset file status for extraction retry
+          file.status = "pending";
+          this.extractFile(batch, file);
+        } else if (batch.status === "processing") {
           if (stage === "scoring") this.scoreFile(batch, file);
           else if (stage === "validation") this.validateFile(batch, file);
         }
@@ -497,6 +579,10 @@ export class BulkResumeProcessor extends EventEmitter {
       console.error(
         `❌ ${stage} failed permanently for ${file.originalFile.originalname}`
       );
+      // Cleanup file when permanently failed
+      if (stage === "extraction") {
+        this.cleanupFile(file.originalFile.path);
+      }
     }
   }
 
@@ -668,7 +754,7 @@ export class BulkResumeProcessor extends EventEmitter {
   private initializeMetrics(totalFiles: number) {
     return {
       total: totalFiles,
-      pending: 0,
+      pending: totalFiles, // Initially all files are pending
       extracting: 0,
       extracted: 0,
       scoring: 0,
@@ -832,5 +918,53 @@ export class BulkResumeProcessor extends EventEmitter {
 
   getBatch(batchId: string): BatchJob | undefined {
     return this.jobs.get(batchId);
+  }
+
+  private async uploadToSupabase(
+    file: ResumeFile,
+    type: "extraction" | "scores" | "validation"
+  ): Promise<void> {
+    try {
+      const filename = file.originalFile.originalname;
+      const mode = serverConfig.extractionMode;
+
+      switch (type) {
+        case "extraction":
+          if (file.results.extraction) {
+            await this.supabase.saveExtraction(
+              filename,
+              file.results.extraction,
+              mode
+            );
+          }
+          break;
+
+        case "scores":
+          if (file.results.scores) {
+            await this.supabase.updateScores(
+              filename,
+              file.results.scores,
+              mode
+            );
+          }
+          break;
+
+        case "validation":
+          if (file.results.validation) {
+            await this.supabase.updateValidation(
+              filename,
+              file.results.validation,
+              mode
+            );
+          }
+          break;
+      }
+    } catch (error) {
+      // Don't fail the main process if Supabase upload fails
+      console.warn(
+        `⚠️ Failed to upload ${type} to Supabase for ${file.originalFile.originalname}:`,
+        error instanceof Error ? error.message : error
+      );
+    }
   }
 }
