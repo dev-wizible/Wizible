@@ -1461,6 +1461,10 @@
 
               this.renderFolders();
               this.updateCurrentFolderDisplay();
+
+              // Load configuration for current folder
+              await this.loadFolderConfiguration();
+
               this.addLog(
                 `📁 Loaded ${this.folders.length} folders`,
                 "success"
@@ -1623,12 +1627,67 @@
               // Reset extraction status and re-detect files
               this.extracted = false;
               await this.detectExtractedFiles();
+
+              // Load configuration for this folder
+              await this.loadFolderConfiguration();
+
               this.updateStepStatus();
             } else {
               this.addLog(`Failed to switch folder: ${result.error}`, "error");
             }
           } catch (error) {
             this.addLog(`Error switching folder: ${error.message}`, "error");
+          }
+        }
+
+        async loadFolderConfiguration() {
+          try {
+            this.addLog("🔧 Loading folder configuration...", "info");
+
+            const response = await fetch(`${this.apiBaseUrl}/api/config`);
+            const result = await response.json();
+
+            if (result.success && result.data.configured) {
+              // Fill in the configuration fields
+              const jobDescElement = document.getElementById("jobDescription");
+              const rubricElement = document.getElementById("evaluationRubric");
+
+              if (jobDescElement && rubricElement) {
+                jobDescElement.value = result.data.jobDescription;
+                rubricElement.value = result.data.evaluationRubric;
+
+                // Mark as configured
+                this.configured = true;
+
+                // Trigger validation to enable the save button
+                this.validateAndUpdateConfigButton();
+
+                this.addLog(
+                  `✅ Loaded configuration for folder (${result.data.jobDescriptionLength} + ${result.data.evaluationRubricLength} characters)`,
+                  "success"
+                );
+              }
+            } else {
+              // Clear configuration fields
+              const jobDescElement = document.getElementById("jobDescription");
+              const rubricElement = document.getElementById("evaluationRubric");
+
+              if (jobDescElement && rubricElement) {
+                jobDescElement.value = "";
+                rubricElement.value = "";
+              }
+
+              this.configured = false;
+              this.validateAndUpdateConfigButton();
+
+              this.addLog("📝 No configuration found for this folder", "info");
+            }
+          } catch (error) {
+            this.addLog(
+              `Error loading configuration: ${error.message}`,
+              "error"
+            );
+            this.configured = false;
           }
         }
 

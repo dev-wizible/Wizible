@@ -34,7 +34,9 @@ const validateFolderName = [
     .isString()
     .isLength({ min: 1, max: 50 })
     .matches(/^[a-zA-Z0-9_-]+$/)
-    .withMessage("Folder name must be 1-50 characters and contain only letters, numbers, underscores, and hyphens"),
+    .withMessage(
+      "Folder name must be 1-50 characters and contain only letters, numbers, underscores, and hyphens"
+    ),
   handleValidationErrors,
 ];
 
@@ -54,14 +56,22 @@ router.get("/folders", resumeController.getFolders);
 router.post("/folders", validateFolderName, resumeController.createFolder);
 
 // Delete folder
-router.delete("/folders/:folderName", validateFolderParam, resumeController.deleteFolder);
+router.delete(
+  "/folders/:folderName",
+  validateFolderParam,
+  resumeController.deleteFolder
+);
 
 // Get current folder
 router.get("/current-folder", resumeController.getCurrentFolder);
 
 // Switch current folder
-router.post("/current-folder", 
-  body("folderName").isString().notEmpty().withMessage("Folder name is required"),
+router.post(
+  "/current-folder",
+  body("folderName")
+    .isString()
+    .notEmpty()
+    .withMessage("Folder name is required"),
   handleValidationErrors,
   resumeController.switchCurrentFolder
 );
@@ -109,6 +119,9 @@ router.post(
 
 // Step 2: Set job configuration (unchanged)
 router.post("/config", validateJobConfig, resumeController.setJobConfiguration);
+
+// Get current job configuration
+router.get("/config", resumeController.getJobConfiguration);
 
 // Step 3: Get extracted files (now folder-aware)
 router.get("/extracted-files", resumeController.getExtractedFiles);

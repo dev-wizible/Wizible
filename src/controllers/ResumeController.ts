@@ -10,8 +10,10 @@ import {
   serverConfig,
   getCurrentExtractionDir,
   setCurrentFolder,
+  setCurrentFolderWithPersistence,
   getAllFolders,
   getFolderInfo,
+  syncFoldersFromDatabase,
 } from "../config";
 import { v4 as uuidv4 } from "uuid";
 
@@ -28,6 +30,10 @@ export class ResumeController {
   private async initializeProcessor(): Promise<void> {
     try {
       await this.processor.initialize();
+
+      // Sync folders from database on startup
+      await syncFoldersFromDatabase(this.folderManager);
+
       console.log("✅ ResumeController initialized with folder management");
     } catch (error) {
       console.error("❌ Failed to initialize ResumeController:", error);
@@ -198,7 +204,10 @@ export class ResumeController {
         return;
       }
 
-      const success = setCurrentFolder(folderName);
+      const success = await setCurrentFolderWithPersistence(
+        folderName,
+        this.folderManager
+      );
 
       if (success) {
         const folderInfo = getFolderInfo(folderName);
@@ -362,10 +371,33 @@ export class ResumeController {
         evaluationRubric: evaluationRubric.trim(),
       };
 
-      const configPath = path.join(serverConfig.outputDir, "job-config.json");
+      // Save configuration to the current folder's directory
+      const currentFolderInfo = getFolderInfo(serverConfig.currentFolder);
+      if (!currentFolderInfo) {
+        res.status(500).json({
+          success: false,
+          error: "Current folder not found",
+        });
+        return;
+      }
+
+      // Create folder-specific config path
+      const configPath = path.join(
+        path.dirname(currentFolderInfo.path),
+        `job-config-${serverConfig.currentFolder}.json`
+      );
+
+      // Ensure the directory exists
+      const configDir = path.dirname(configPath);
+      if (!fs.existsSync(configDir)) {
+        fs.mkdirSync(configDir, { recursive: true });
+      }
+
       fs.writeFileSync(configPath, JSON.stringify(jobConfig, null, 2));
 
-      console.log("⚙️ Job configuration saved");
+      console.log(
+        `⚙️ Job configuration saved for folder '${serverConfig.currentFolder}' at: ${configPath}`
+      );
 
       res.status(200).json({
         success: true,
@@ -377,6 +409,57 @@ export class ResumeController {
       });
     } catch (error) {
       console.error("Error saving job configuration:", error);
+      res.status(500).json({
+        success: false,
+        error: "Internal server error",
+      });
+    }
+  };
+
+  // Get current job configuration for the current folder
+  getJobConfiguration = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const currentFolderInfo = getFolderInfo(serverConfig.currentFolder);
+      if (!currentFolderInfo) {
+        res.status(500).json({
+          success: false,
+          error: "Current folder not found",
+        });
+        return;
+      }
+
+      const configPath = path.join(
+        path.dirname(currentFolderInfo.path),
+        `job-config-${serverConfig.currentFolder}.json`
+      );
+
+      if (!fs.existsSync(configPath)) {
+        res.status(200).json({
+          success: true,
+          data: {
+            configured: false,
+            folder: serverConfig.currentFolder,
+            message: `No configuration found for folder '${serverConfig.currentFolder}'`,
+          },
+        });
+        return;
+      }
+
+      const jobConfig = JSON.parse(fs.readFileSync(configPath, "utf8"));
+
+      res.status(200).json({
+        success: true,
+        data: {
+          configured: true,
+          folder: serverConfig.currentFolder,
+          jobDescription: jobConfig.jobDescription,
+          evaluationRubric: jobConfig.evaluationRubric,
+          jobDescriptionLength: jobConfig.jobDescription.length,
+          evaluationRubricLength: jobConfig.evaluationRubric.length,
+        },
+      });
+    } catch (error) {
+      console.error("Error getting job configuration:", error);
       res.status(500).json({
         success: false,
         error: "Internal server error",
@@ -462,11 +545,25 @@ export class ResumeController {
         return;
       }
 
-      const configPath = path.join(serverConfig.outputDir, "job-config.json");
+      // Load folder-specific configuration
+      const currentFolderInfo = getFolderInfo(serverConfig.currentFolder);
+      if (!currentFolderInfo) {
+        res.status(500).json({
+          success: false,
+          error: "Current folder not found",
+        });
+        return;
+      }
+
+      const configPath = path.join(
+        path.dirname(currentFolderInfo.path),
+        `job-config-${serverConfig.currentFolder}.json`
+      );
+
       if (!fs.existsSync(configPath)) {
         res.status(400).json({
           success: false,
-          error: "Job configuration not found. Please configure job first.",
+          error: `Job configuration not found for folder '${serverConfig.currentFolder}'. Please configure job first.`,
         });
         return;
       }
