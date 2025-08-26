@@ -1,4 +1,4 @@
-// src/types/index.ts
+// src/types/index.ts - Enhanced with folder support
 export interface ResumeFile {
   id: string;
   originalFile: Express.Multer.File;
@@ -25,6 +25,7 @@ export interface ResumeFile {
   };
   error?: string;
   retryCount: number;
+  folderName?: string; // Add folder context
 }
 
 export interface BatchJob {
@@ -48,6 +49,7 @@ export interface BatchJob {
   configuredAt?: Date;
   startedAt?: Date;
   completedAt?: Date;
+  folderName?: string; // Add folder context
 }
 
 export interface JobConfig {
@@ -114,4 +116,28 @@ export interface BatchProgress {
     scoring: string[];
     validating: string[];
   };
+}
+
+// Add folder-related interfaces
+export interface FolderStats {
+  totalFiles: number;
+  extractedFiles: number;
+  scoredFiles: number;
+  validatedFiles: number;
+}
+
+export interface FolderInfo {
+  name: string;
+  displayName: string;
+  path: string;
+  tableName: string;
+  createdAt: Date;
+  isActive: boolean;
+  stats?: FolderStats;
+}
+
+export interface FolderValidation {
+  valid: boolean;
+  issues: string[];
+  suggestions: string[];
 }

@@ -1,31 +1,284 @@
-// src/controllers/ResumeController.ts
+// src/controllers/ResumeController.ts - Enhanced with folder management
 import { Request, Response } from "express";
 import { BulkResumeProcessor } from "../services/BulkResumeProcessor";
+import { FolderManager } from "../services/FolderManager";
 import { JobConfig } from "../types";
 import fs from "fs";
 import path from "path";
 import archiver from "archiver";
-import { serverConfig, getExtractionDir, setExtractionMode } from "../config";
+import {
+  serverConfig,
+  getCurrentExtractionDir,
+  setCurrentFolder,
+  getAllFolders,
+  getFolderInfo,
+} from "../config";
 import { v4 as uuidv4 } from "uuid";
 
 export class ResumeController {
   private processor: BulkResumeProcessor;
+  private folderManager: FolderManager;
 
   constructor() {
     this.processor = new BulkResumeProcessor();
+    this.folderManager = new FolderManager();
     this.initializeProcessor();
   }
 
   private async initializeProcessor(): Promise<void> {
     try {
       await this.processor.initialize();
-      console.log("✅ ResumeController initialized");
+      console.log("✅ ResumeController initialized with folder management");
     } catch (error) {
       console.error("❌ Failed to initialize ResumeController:", error);
     }
   }
 
-  // Step 1: Extract resumes to JSON using LlamaIndex
+  // =====================================================
+  // FOLDER MANAGEMENT ENDPOINTS
+  // =====================================================
+
+  // Get all folders
+  getFolders = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const folders = getAllFolders();
+      const foldersWithStats = await Promise.all(
+        folders.map(async (folder) => {
+          const stats = await this.folderManager.getFolderStats(folder.name);
+          return {
+            ...folder,
+            stats,
+          };
+        })
+      );
+
+      res.status(200).json({
+        success: true,
+        data: {
+          folders: foldersWithStats,
+          currentFolder: serverConfig.currentFolder,
+          totalFolders: folders.length,
+        },
+      });
+    } catch (error) {
+      console.error("Error getting folders:", error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : "Internal server error",
+      });
+    }
+  };
+
+  // Create new folder
+  createFolder = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { name, displayName } = req.body;
+
+      if (!name || typeof name !== "string") {
+        res.status(400).json({
+          success: false,
+          error: "Folder name is required and must be a string",
+        });
+        return;
+      }
+
+      if (name.length < 1 || name.length > 50) {
+        res.status(400).json({
+          success: false,
+          error: "Folder name must be between 1 and 50 characters",
+        });
+        return;
+      }
+
+      // Validate name contains only allowed characters
+      if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
+        res.status(400).json({
+          success: false,
+          error:
+            "Folder name can only contain letters, numbers, underscores, and hyphens",
+        });
+        return;
+      }
+
+      console.log(`📁 Creating new folder: ${name} (${displayName || name})`);
+
+      const folderInfo = await this.folderManager.createNewFolder(
+        name,
+        displayName
+      );
+
+      res.status(201).json({
+        success: true,
+        data: {
+          folder: folderInfo,
+          message: `Folder '${folderInfo.displayName}' created successfully`,
+        },
+      });
+    } catch (error) {
+      console.error("Error creating folder:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Internal server error";
+
+      if (errorMessage.includes("already exists")) {
+        res.status(409).json({
+          success: false,
+          error: errorMessage,
+        });
+      } else {
+        res.status(500).json({
+          success: false,
+          error: errorMessage,
+        });
+      }
+    }
+  };
+
+  // Delete folder
+  deleteFolder = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { folderName } = req.params;
+
+      if (!folderName) {
+        res.status(400).json({
+          success: false,
+          error: "Folder name is required",
+        });
+        return;
+      }
+
+      console.log(`🗑️ Deleting folder: ${folderName}`);
+
+      const success = await this.folderManager.deleteFolderAndTable(folderName);
+
+      if (success) {
+        res.status(200).json({
+          success: true,
+          data: {
+            folderName,
+            message: `Folder '${folderName}' deleted successfully`,
+          },
+        });
+      } else {
+        res.status(404).json({
+          success: false,
+          error: `Folder '${folderName}' not found`,
+        });
+      }
+    } catch (error) {
+      console.error("Error deleting folder:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Internal server error";
+
+      if (errorMessage.includes("Cannot delete default folders")) {
+        res.status(403).json({
+          success: false,
+          error: errorMessage,
+        });
+      } else {
+        res.status(500).json({
+          success: false,
+          error: errorMessage,
+        });
+      }
+    }
+  };
+
+  // Switch current folder
+  switchCurrentFolder = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { folderName } = req.body;
+
+      console.log(`🔄 POST /api/current-folder - Switching to: ${folderName}`);
+
+      if (!folderName || typeof folderName !== "string") {
+        res.status(400).json({
+          success: false,
+          error: "Folder name is required",
+        });
+        return;
+      }
+
+      const success = setCurrentFolder(folderName);
+
+      if (success) {
+        const folderInfo = getFolderInfo(folderName);
+        res.status(200).json({
+          success: true,
+          data: {
+            currentFolder: folderName,
+            folderInfo,
+            extractionDir: getCurrentExtractionDir(),
+            message: `Switched to folder: ${
+              folderInfo?.displayName || folderName
+            }`,
+          },
+        });
+      } else {
+        res.status(404).json({
+          success: false,
+          error: `Folder '${folderName}' not found or inactive`,
+        });
+      }
+    } catch (error) {
+      console.error("❌ Error switching folder:", error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : "Internal server error",
+      });
+    }
+  };
+
+  // Get current folder info
+  getCurrentFolder = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const currentFolderName = serverConfig.currentFolder;
+      const folderInfo = getFolderInfo(currentFolderName);
+      const extractionDir = getCurrentExtractionDir();
+
+      console.log(
+        `📁 GET /api/current-folder - Current: ${currentFolderName} → ${extractionDir}`
+      );
+
+      res.status(200).json({
+        success: true,
+        data: {
+          currentFolder: currentFolderName,
+          folderInfo,
+          extractionDir,
+        },
+      });
+    } catch (error) {
+      console.error("❌ Error getting current folder:", error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : "Internal server error",
+      });
+    }
+  };
+
+  // Validate folder structure
+  validateFolders = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const validation = await this.folderManager.validateFolderStructure();
+
+      res.status(200).json({
+        success: true,
+        data: validation,
+      });
+    } catch (error) {
+      console.error("Error validating folders:", error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : "Internal server error",
+      });
+    }
+  };
+
+  // =====================================================
+  // EXISTING RESUME PROCESSING ENDPOINTS (Updated)
+  // =====================================================
+
+  // Step 1: Extract resumes to JSON using LlamaIndex (Updated to pass folderName)
   extractResumes = async (req: Request, res: Response): Promise<void> => {
     try {
       const files = (req as Request & { files?: Express.Multer.File[] }).files;
@@ -38,7 +291,6 @@ export class ResumeController {
         return;
       }
 
-      // Filter PDF files only
       const pdfFiles = files.filter(
         (file) =>
           file.mimetype === "application/pdf" ||
@@ -53,9 +305,16 @@ export class ResumeController {
         return;
       }
 
-      console.log(`🔄 Starting extraction for ${pdfFiles.length} PDF files`);
+      const currentFolder = serverConfig.currentFolder;
+      console.log(
+        `🔄 Starting extraction for ${pdfFiles.length} PDF files in folder: ${currentFolder}`
+      );
 
-      const batchId = await this.processor.extractResumes(pdfFiles);
+      // Pass currentFolder to the processor
+      const batchId = await this.processor.extractResumes(
+        pdfFiles,
+        currentFolder
+      );
 
       res.status(200).json({
         success: true,
@@ -64,7 +323,8 @@ export class ResumeController {
           totalFiles: pdfFiles.length,
           extractedCount: pdfFiles.length,
           status: "extracted",
-          message: "Resumes successfully extracted to JSON using LlamaIndex",
+          folder: currentFolder,
+          message: `Resumes successfully extracted to JSON in folder '${currentFolder}' using LlamaIndex`,
         },
       });
     } catch (error) {
@@ -76,7 +336,7 @@ export class ResumeController {
     }
   };
 
-  // Step 2: Set job configuration
+  // Step 2: Set job configuration (unchanged)
   setJobConfiguration = async (req: Request, res: Response): Promise<void> => {
     try {
       const { jobDescription, evaluationRubric } = req.body;
@@ -97,17 +357,15 @@ export class ResumeController {
         return;
       }
 
-      // Store configuration globally for now (in production, associate with batch)
       const jobConfig: JobConfig = {
         jobDescription: jobDescription.trim(),
         evaluationRubric: evaluationRubric.trim(),
       };
 
-      // Store in a global config file for simplicity
       const configPath = path.join(serverConfig.outputDir, "job-config.json");
       fs.writeFileSync(configPath, JSON.stringify(jobConfig, null, 2));
 
-      console.log("✅ Job configuration saved");
+      console.log("⚙️ Job configuration saved");
 
       res.status(200).json({
         success: true,
@@ -126,67 +384,114 @@ export class ResumeController {
     }
   };
 
-  // Step 3: Prepare batch for processing
-  prepareBatch = async (req: Request, res: Response): Promise<void> => {
+  // Get extracted files (updated for current folder)
+  getExtractedFiles = async (req: Request, res: Response): Promise<void> => {
     try {
-      const { batchId } = req.params;
+      const extractionsDir = getCurrentExtractionDir();
+      const currentFolder = serverConfig.currentFolder;
 
-      // Load job configuration
+      if (!fs.existsSync(extractionsDir)) {
+        res.status(200).json({
+          success: true,
+          data: {
+            files: [],
+            folder: currentFolder,
+            folderInfo: getFolderInfo(currentFolder),
+          },
+        });
+        return;
+      }
+
+      const files = fs
+        .readdirSync(extractionsDir)
+        .filter((file) => file.endsWith(".json"))
+        .map((file) => {
+          const filePath = path.join(extractionsDir, file);
+          const stats = fs.statSync(filePath);
+          return {
+            name: file,
+            size: stats.size,
+            modified: stats.mtime,
+            path: filePath,
+          };
+        })
+        .sort((a, b) => b.modified.getTime() - a.modified.getTime());
+
+      res.status(200).json({
+        success: true,
+        data: {
+          files,
+          count: files.length,
+          folder: currentFolder,
+          folderInfo: getFolderInfo(currentFolder),
+          extractionDir: extractionsDir,
+        },
+      });
+    } catch (error) {
+      console.error("Error getting extracted files:", error);
+      res.status(500).json({
+        success: false,
+        error: "Internal server error",
+      });
+    }
+  };
+
+  // Start evaluation (updated for current folder)
+  startEvaluation = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const currentFolder = serverConfig.currentFolder;
+      const extractionsDir = getCurrentExtractionDir();
+
+      if (!fs.existsSync(extractionsDir)) {
+        res.status(400).json({
+          success: false,
+          error: `No extracted files found in folder '${currentFolder}'. Please complete extraction first.`,
+        });
+        return;
+      }
+
+      const extractedFiles = fs
+        .readdirSync(extractionsDir)
+        .filter((file) => file.endsWith(".json"));
+
+      if (extractedFiles.length === 0) {
+        res.status(400).json({
+          success: false,
+          error: `No extracted JSON files found in folder '${currentFolder}' for evaluation.`,
+        });
+        return;
+      }
+
       const configPath = path.join(serverConfig.outputDir, "job-config.json");
       if (!fs.existsSync(configPath)) {
         res.status(400).json({
           success: false,
-          error:
-            "Job configuration not found. Please set job configuration first.",
+          error: "Job configuration not found. Please configure job first.",
         });
         return;
       }
 
       const jobConfig = JSON.parse(fs.readFileSync(configPath, "utf8"));
 
-      // Set configuration for the batch
-      await this.processor.setJobConfiguration(batchId, jobConfig);
-      await this.processor.prepareBatch(batchId);
-
-      const batch = this.processor.getBatch(batchId);
-      const totalFiles = batch?.metrics.total || 0;
-
-      res.status(200).json({
-        success: true,
-        data: {
-          batchId,
-          totalFiles,
-          status: "prepared",
-          message: "Batch prepared for processing",
-        },
-      });
-    } catch (error) {
-      console.error("Error preparing batch:", error);
-      res.status(500).json({
-        success: false,
-        error: error instanceof Error ? error.message : "Internal server error",
-      });
-    }
-  };
-
-  // Step 4: Start processing
-  startProcessing = async (req: Request, res: Response): Promise<void> => {
-    try {
-      const { batchId } = req.params;
-
+      const batchId = await this.createVirtualBatch(
+        extractedFiles,
+        jobConfig,
+        currentFolder
+      );
       await this.processor.startProcessing(batchId);
 
       res.status(200).json({
         success: true,
         data: {
           batchId,
+          totalFiles: extractedFiles.length,
           status: "processing",
-          message:
-            "Processing started - OpenAI scoring and Anthropic validation pipeline",
+          folder: currentFolder,
+          message: `OpenAI scoring started for ${extractedFiles.length} files in folder '${currentFolder}' - processing through OpenAI GPT-4o-mini`,
         },
       });
     } catch (error) {
-      console.error("Error starting processing:", error);
+      console.error("Error starting evaluation:", error);
       res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
@@ -194,7 +499,112 @@ export class ResumeController {
     }
   };
 
-  // Get batch progress
+  private async createVirtualBatch(
+    extractedFiles: string[],
+    jobConfig: JobConfig,
+    folderName: string
+  ): Promise<string> {
+    const currentExtractionDir = getCurrentExtractionDir();
+
+    const virtualFiles: Express.Multer.File[] = extractedFiles.map(
+      (filename, index) => {
+        const extractionPath = path.join(currentExtractionDir, filename);
+        const originalName = filename.replace("_extraction.json", ".pdf");
+
+        return {
+          fieldname: "resumes",
+          originalname: originalName,
+          encoding: "7bit",
+          mimetype: "application/pdf",
+          size: fs.statSync(extractionPath).size,
+          destination: serverConfig.uploadDir,
+          filename: `virtual_${Date.now()}_${index}.pdf`,
+          path: extractionPath,
+          buffer: Buffer.from(""),
+          stream: null as any,
+        } as Express.Multer.File;
+      }
+    );
+
+    const batchId = await this.createVirtualBatchWithExtractions(
+      virtualFiles,
+      jobConfig,
+      extractedFiles,
+      folderName
+    );
+
+    return batchId;
+  }
+
+  private async createVirtualBatchWithExtractions(
+    virtualFiles: Express.Multer.File[],
+    jobConfig: JobConfig,
+    extractedFiles: string[],
+    folderName: string
+  ): Promise<string> {
+    const batchId = uuidv4();
+    const currentExtractionDir = getCurrentExtractionDir();
+
+    const resumeFiles = virtualFiles.map((file, index) => {
+      const extractionPath = path.join(
+        currentExtractionDir,
+        extractedFiles[index]
+      );
+      const extractionData = JSON.parse(
+        fs.readFileSync(extractionPath, "utf8")
+      );
+
+      return {
+        id: uuidv4(),
+        originalFile: file,
+        status: "pending" as const,
+        progress: { startTime: new Date() },
+        results: {
+          extraction: extractionData,
+        },
+        retryCount: 0,
+        folderName: folderName, // Add folder context
+      };
+    });
+
+    const batch = {
+      id: batchId,
+      status: "configured" as const,
+      files: resumeFiles,
+      jobConfig,
+      folderName: folderName, // Add folder context to batch
+      metrics: {
+        total: resumeFiles.length,
+        pending: resumeFiles.length,
+        extracting: 0,
+        extracted: resumeFiles.length,
+        scoring: 0,
+        scored: 0,
+        validating: 0,
+        completed: 0,
+        failed: 0,
+        timing: {
+          elapsedMs: 0,
+          throughputPerHour: 0,
+        },
+      },
+      createdAt: new Date(),
+      configuredAt: new Date(),
+    };
+
+    (this.processor as any).jobs.set(batchId, batch);
+
+    console.log(
+      `📦 Created virtual batch ${batchId} with ${resumeFiles.length} pre-extracted files in folder '${folderName}'`
+    );
+
+    return batchId;
+  }
+
+  // =====================================================
+  // EXISTING PROCESSING METHODS (Complete Implementation)
+  // =====================================================
+
   getBatchProgress = async (req: Request, res: Response): Promise<void> => {
     try {
       const { batchId } = req.params;
@@ -208,19 +618,6 @@ export class ResumeController {
         return;
       }
 
-      // Debug logging to help diagnose progress issues
-      console.log(`📊 Progress API called for batch ${batchId}:`, {
-        status: progress.status,
-        metrics: progress.metrics,
-        currentFiles: Object.keys(progress.currentFiles).map(
-          (key) =>
-            `${key}: ${
-              progress.currentFiles[key as keyof typeof progress.currentFiles]
-                .length
-            }`
-        ),
-      });
-
       res.status(200).json({
         success: true,
         data: progress,
@@ -230,6 +627,42 @@ export class ResumeController {
       res.status(500).json({
         success: false,
         error: "Internal server error",
+      });
+    }
+  };
+
+  // Start Anthropic validation (separate from OpenAI)
+  startAnthropicValidation = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    try {
+      const { batchId } = req.body;
+
+      if (!batchId) {
+        res.status(400).json({
+          success: false,
+          error: "Batch ID is required",
+        });
+        return;
+      }
+
+      await this.processor.startAnthropicValidation(batchId);
+
+      res.status(200).json({
+        success: true,
+        data: {
+          batchId,
+          status: "validating",
+          message:
+            "Anthropic validation started - validating OpenAI scores with Claude",
+        },
+      });
+    } catch (error) {
+      console.error("Error starting Anthropic validation:", error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : "Internal server error",
       });
     }
   };
@@ -332,6 +765,8 @@ export class ResumeController {
         startedAt: batch.startedAt,
         completedAt: batch.completedAt,
         throughput: batch.metrics.timing.throughputPerHour,
+        // Add folder info if available
+        folderName: batch.folderName || "unknown",
       }));
 
       res.status(200).json({
@@ -383,7 +818,23 @@ export class ResumeController {
     type: string,
     res: Response
   ): Promise<void> {
-    const outputDir = path.join(serverConfig.outputDir, type);
+    // Determine output directory - use current folder context if available
+    let outputDir: string;
+
+    if (type === "extractions") {
+      outputDir = getCurrentExtractionDir();
+    } else {
+      outputDir = path.join(
+        serverConfig.outputDir,
+        type,
+        serverConfig.currentFolder
+      );
+
+      // Fallback to main directory if folder-specific doesn't exist
+      if (!fs.existsSync(outputDir)) {
+        outputDir = path.join(serverConfig.outputDir, type);
+      }
+    }
 
     if (!fs.existsSync(outputDir)) {
       res.status(404).json({
@@ -393,7 +844,11 @@ export class ResumeController {
       return;
     }
 
-    const zipFilename = `batch-${batchId}-${type}.zip`;
+    const folderPrefix = serverConfig.currentFolder
+      ? `${serverConfig.currentFolder}-`
+      : "";
+    const zipFilename = `${folderPrefix}${type}-${batchId}.zip`;
+
     res.setHeader("Content-Type", "application/zip");
     res.setHeader(
       "Content-Disposition",
@@ -424,13 +879,28 @@ export class ResumeController {
   }
 
   private async downloadReport(batchId: string, res: Response): Promise<void> {
+    const folderPrefix = serverConfig.currentFolder
+      ? `${serverConfig.currentFolder}-`
+      : "";
     const reportPath = path.join(
+      serverConfig.outputDir,
+      "reports",
+      serverConfig.currentFolder || "",
+      `batch-${batchId}-report.json`
+    );
+
+    // Fallback to main reports directory
+    const fallbackReportPath = path.join(
       serverConfig.outputDir,
       "reports",
       `batch-${batchId}-report.json`
     );
 
-    if (!fs.existsSync(reportPath)) {
+    const finalReportPath = fs.existsSync(reportPath)
+      ? reportPath
+      : fallbackReportPath;
+
+    if (!fs.existsSync(finalReportPath)) {
       res.status(404).json({
         success: false,
         error: "Report not found",
@@ -438,259 +908,18 @@ export class ResumeController {
       return;
     }
 
-    const reportFilename = `batch-${batchId}-report.json`;
+    const reportFilename = `${folderPrefix}report-${batchId}.json`;
     res.setHeader("Content-Type", "application/json");
     res.setHeader(
       "Content-Disposition",
       `attachment; filename="${reportFilename}"`
     );
 
-    const reportData = fs.readFileSync(reportPath);
+    const reportData = fs.readFileSync(finalReportPath);
     res.send(reportData);
   }
 
-  // Get extracted files (for Step 3 auto-detection)
-  getExtractedFiles = async (req: Request, res: Response): Promise<void> => {
-    try {
-      const extractionsDir = getExtractionDir();
-
-      if (!fs.existsSync(extractionsDir)) {
-        res.status(200).json({
-          success: true,
-          data: { files: [] },
-        });
-        return;
-      }
-
-      const files = fs
-        .readdirSync(extractionsDir)
-        .filter((file) => file.endsWith(".json"))
-        .map((file) => {
-          const filePath = path.join(extractionsDir, file);
-          const stats = fs.statSync(filePath);
-          return {
-            name: file,
-            size: stats.size,
-            modified: stats.mtime,
-            path: filePath,
-          };
-        })
-        .sort((a, b) => b.modified.getTime() - a.modified.getTime()); // Most recent first
-
-      res.status(200).json({
-        success: true,
-        data: {
-          files,
-          count: files.length,
-        },
-      });
-    } catch (error) {
-      console.error("Error getting extracted files:", error);
-      res.status(500).json({
-        success: false,
-        error: "Internal server error",
-      });
-    }
-  };
-
-  // Start evaluation (combines batch creation and processing)
-  startEvaluation = async (req: Request, res: Response): Promise<void> => {
-    try {
-      // Check if we have extracted files
-      const extractionsDir = getExtractionDir();
-      if (!fs.existsSync(extractionsDir)) {
-        res.status(400).json({
-          success: false,
-          error: "No extracted files found. Please complete extraction first.",
-        });
-        return;
-      }
-
-      const extractedFiles = fs
-        .readdirSync(extractionsDir)
-        .filter((file) => file.endsWith(".json"));
-
-      if (extractedFiles.length === 0) {
-        res.status(400).json({
-          success: false,
-          error: "No extracted JSON files found for evaluation.",
-        });
-        return;
-      }
-
-      // Check if we have job configuration
-      const configPath = path.join(serverConfig.outputDir, "job-config.json");
-      if (!fs.existsSync(configPath)) {
-        res.status(400).json({
-          success: false,
-          error: "Job configuration not found. Please configure job first.",
-        });
-        return;
-      }
-
-      const jobConfig = JSON.parse(fs.readFileSync(configPath, "utf8"));
-
-      // Create a virtual batch from extracted files
-      const batchId = await this.createVirtualBatch(extractedFiles, jobConfig);
-
-      // Start processing immediately
-      await this.processor.startProcessing(batchId);
-
-      res.status(200).json({
-        success: true,
-        data: {
-          batchId,
-          totalFiles: extractedFiles.length,
-          status: "processing",
-          message:
-            "OpenAI scoring started - processing extracted files through OpenAI GPT-4o-mini",
-        },
-      });
-    } catch (error) {
-      console.error("Error starting evaluation:", error);
-      res.status(500).json({
-        success: false,
-        error: error instanceof Error ? error.message : "Internal server error",
-      });
-    }
-  };
-
-  // Start Anthropic validation (separate from OpenAI scoring)
-  startAnthropicValidation = async (
-    req: Request,
-    res: Response
-  ): Promise<void> => {
-    try {
-      const { batchId } = req.body;
-
-      if (!batchId) {
-        res.status(400).json({
-          success: false,
-          error: "Batch ID is required",
-        });
-        return;
-      }
-
-      // Start Anthropic validation
-      await this.processor.startAnthropicValidation(batchId);
-
-      res.status(200).json({
-        success: true,
-        data: {
-          batchId,
-          status: "validating",
-          message:
-            "Anthropic validation started - validating OpenAI scores with Claude",
-        },
-      });
-    } catch (error) {
-      console.error("Error starting Anthropic validation:", error);
-      res.status(500).json({
-        success: false,
-        error: error instanceof Error ? error.message : "Internal server error",
-      });
-    }
-  };
-
-  private async createVirtualBatch(
-    extractedFiles: string[],
-    jobConfig: JobConfig
-  ): Promise<string> {
-    // Create virtual resume files from extracted JSONs
-    const virtualFiles: Express.Multer.File[] = extractedFiles.map(
-      (filename, index) => {
-        const extractionPath = path.join(getExtractionDir(), filename);
-        const originalName = filename.replace("_extraction.json", ".pdf");
-
-        return {
-          fieldname: "resumes",
-          originalname: originalName,
-          encoding: "7bit",
-          mimetype: "application/pdf",
-          size: fs.statSync(extractionPath).size,
-          destination: serverConfig.uploadDir,
-          filename: `virtual_${Date.now()}_${index}.pdf`,
-          path: extractionPath, // Point to the extraction file
-          buffer: Buffer.from(""),
-          stream: null as any,
-        } as Express.Multer.File;
-      }
-    );
-
-    // Create batch with pre-extracted data
-    const batchId = await this.createVirtualBatchWithExtractions(
-      virtualFiles,
-      jobConfig,
-      extractedFiles
-    );
-
-    return batchId;
-  }
-
-  private async createVirtualBatchWithExtractions(
-    virtualFiles: Express.Multer.File[],
-    jobConfig: JobConfig,
-    extractedFiles: string[]
-  ): Promise<string> {
-    // This is a simplified version that creates a batch with pre-existing extractions
-    const batchId = uuidv4();
-
-    // Load existing extractions and create a batch ready for scoring
-    const resumeFiles = virtualFiles.map((file, index) => {
-      const extractionPath = path.join(
-        getExtractionDir(),
-        extractedFiles[index]
-      );
-      const extractionData = JSON.parse(
-        fs.readFileSync(extractionPath, "utf8")
-      );
-
-      return {
-        id: uuidv4(),
-        originalFile: file,
-        status: "pending" as const, // Ready for scoring
-        progress: { startTime: new Date() },
-        results: {
-          extraction: extractionData, // Pre-load the extraction
-        },
-        retryCount: 0,
-      };
-    });
-
-    // Create the batch object directly in the processor
-    const batch = {
-      id: batchId,
-      status: "configured" as const,
-      files: resumeFiles,
-      jobConfig,
-      metrics: {
-        total: resumeFiles.length,
-        pending: resumeFiles.length,
-        extracting: 0,
-        extracted: resumeFiles.length, // Already extracted
-        scoring: 0,
-        scored: 0,
-        validating: 0,
-        completed: 0,
-        failed: 0,
-        timing: {
-          elapsedMs: 0,
-          throughputPerHour: 0,
-        },
-      },
-      createdAt: new Date(),
-      configuredAt: new Date(),
-    };
-
-    // Inject the batch into the processor
-    (this.processor as any).jobs.set(batchId, batch);
-
-    console.log(
-      `📦 Created virtual batch ${batchId} with ${resumeFiles.length} pre-extracted files`
-    );
-
-    return batchId;
-  }
+  // Delete batch
   deleteBatch = async (req: Request, res: Response): Promise<void> => {
     try {
       const { batchId } = req.params;
@@ -717,11 +946,12 @@ export class ResumeController {
     }
   };
 
-  // System health check
   getSystemHealth = async (req: Request, res: Response): Promise<void> => {
     try {
       const batches = this.processor.getAllBatches();
       const memUsage = process.memoryUsage();
+      const folders = getAllFolders();
+      const currentFolder = getFolderInfo(serverConfig.currentFolder);
 
       const stats = {
         system: {
@@ -731,6 +961,16 @@ export class ResumeController {
           },
           uptime: Math.round(process.uptime()),
           status: "healthy",
+        },
+        folders: {
+          total: folders.length,
+          current: currentFolder,
+          available: folders.map((f) => ({
+            name: f.name,
+            displayName: f.displayName,
+            path: f.path,
+            tableName: f.tableName,
+          })),
         },
         batches: {
           total: batches.length,
@@ -753,14 +993,16 @@ export class ResumeController {
         },
         workflow: {
           steps: [
-            "1. Upload Resumes → Convert to JSON (LlamaIndex)",
-            "2. Configure Job Description & Rubric",
-            "3. Create Processing Batch",
-            "4. Start Pipeline (OpenAI Scoring → Anthropic Validation)",
-            "5. Monitor Progress & Download Results",
+            "1. Create/Select Folder → Set as Current",
+            "2. Upload Resumes → Convert to JSON (LlamaIndex)",
+            "3. Configure Job Description & Rubric",
+            "4. Create Processing Batch",
+            "5. Start Pipeline (OpenAI Scoring → Optional Anthropic Validation)",
+            "6. Monitor Progress & Download Results",
           ],
           supportedFormats: ["PDF"],
           maxBatchSize: 5000,
+          dynamicFolders: true,
         },
       };
 
@@ -773,77 +1015,6 @@ export class ResumeController {
       res.status(500).json({
         success: false,
         error: "Internal server error",
-      });
-    }
-  };
-
-  // Switch extraction mode between main and test
-  switchExtractionMode = async (req: Request, res: Response): Promise<void> => {
-    try {
-      const { mode } = req.body;
-
-      console.log(`🔄 POST /api/extraction-mode - Switching to: ${mode}`);
-      console.log(`📋 Request body:`, req.body);
-
-      if (!mode || !["main", "test"].includes(mode)) {
-        console.log(`❌ Invalid mode: ${mode} (must be 'main' or 'test')`);
-        res.status(400).json({
-          success: false,
-          error: "Mode must be 'main' or 'test'",
-        });
-        return;
-      }
-
-      const oldMode = serverConfig.extractionMode;
-      const oldDir = getExtractionDir();
-
-      setExtractionMode(mode);
-
-      const newDir = getExtractionDir();
-
-      console.log(`✅ Extraction mode switched successfully!`);
-      console.log(`   From: ${oldMode} → ${oldDir}`);
-      console.log(`   To:   ${mode} → ${newDir}`);
-
-      res.status(200).json({
-        success: true,
-        data: {
-          mode,
-          extractionDir: newDir,
-          message: `Extraction mode switched to: ${mode}`,
-        },
-      });
-    } catch (error) {
-      console.error("❌ Error switching extraction mode:", error);
-      res.status(500).json({
-        success: false,
-        error: error instanceof Error ? error.message : "Internal server error",
-      });
-    }
-  };
-
-  // Get current extraction mode
-  getExtractionMode = async (req: Request, res: Response): Promise<void> => {
-    try {
-      const mode = serverConfig.extractionMode;
-      const dir = getExtractionDir();
-
-      console.log(
-        `📁 GET /api/extraction-mode - Current mode: ${mode} → ${dir}`
-      );
-
-      res.status(200).json({
-        success: true,
-        data: {
-          mode,
-          extractionDir: dir,
-        },
-      });
-    } catch (error) {
-      console.error("❌ Error getting extraction mode:", error);
-      res.status(500).json({
-        success: false,
-        error: error instanceof Error ? error.message : "Internal server error",
       });
     }
   };

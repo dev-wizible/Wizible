@@ -1,3 +1,4 @@
+// src/config/index.ts - Enhanced for dynamic folders
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -18,7 +19,7 @@ export interface ProcessingConfig {
     exponentialBackoff: boolean;
   };
   rateLimit: {
-    llamaDelay: number; // Delay between LlamaIndex API calls
+    llamaDelay: number;
     openaiDelay: number;
     anthropicDelay: number;
     maxRetryDelay: number;
@@ -47,6 +48,7 @@ export interface APIConfig {
   supabase: {
     url: string;
     anonKey: string;
+    serviceKey: string; // Added for table management
   };
 }
 
@@ -54,34 +56,43 @@ export interface ServerConfig {
   port: number;
   uploadDir: string;
   outputDir: string;
-  extractionMode: "main" | "test"; // Switch between main and test extraction folders
+  currentFolder: string; // Changed from extractionMode to currentFolder
 }
 
-// BALANCED HIGH-RELIABILITY SETTINGS (Prioritizes 100% success with reasonable speed)
+export interface FolderInfo {
+  name: string;
+  displayName: string;
+  path: string;
+  tableName: string;
+  createdAt: Date;
+  isActive: boolean;
+}
+
+// BALANCED HIGH-RELIABILITY SETTINGS
 export const config: ProcessingConfig = {
   concurrent: {
-    extraction: parseInt(process.env.CONCURRENT_EXTRACTIONS || "30"), // MAXIMUM SPEED: 30 concurrent extractions
-    scoring: parseInt(process.env.CONCURRENT_SCORING || "20"), // High concurrency for scoring
-    validation: parseInt(process.env.CONCURRENT_VALIDATIONS || "15"), // High concurrency for validation
+    extraction: parseInt(process.env.CONCURRENT_EXTRACTIONS || "30"),
+    scoring: parseInt(process.env.CONCURRENT_SCORING || "20"),
+    validation: parseInt(process.env.CONCURRENT_VALIDATIONS || "15"),
   },
   timeouts: {
-    extraction: 180000, // 3 minutes per extraction (reduced for speed)
-    scoring: 60000, // 1 minute for scoring (faster)
-    validation: 90000, // 1.5 minutes for validation (faster)
+    extraction: 180000,
+    scoring: 60000,
+    validation: 90000,
   },
   retries: {
-    maxAttempts: 2, // Reduced retries for maximum speed
-    delay: 1000, // 1 second initial delay for speed
+    maxAttempts: 2,
+    delay: 1000,
     exponentialBackoff: true,
   },
   rateLimit: {
-    llamaDelay: 500, // MAXIMUM SPEED: Minimal delays for 30 concurrent
-    openaiDelay: 400, // Minimal delay for high throughput
-    anthropicDelay: 500, // Minimal delay for high throughput
-    maxRetryDelay: 30000, // 30 second max retry delay for speed
+    llamaDelay: 500,
+    openaiDelay: 400,
+    anthropicDelay: 500,
+    maxRetryDelay: 30000,
   },
   files: {
-    maxSize: 10 * 1024 * 1024, // 10MB per file
+    maxSize: 10 * 1024 * 1024,
     maxBatch: 5000,
   },
 };
@@ -104,37 +115,122 @@ export const apiConfig: APIConfig = {
   supabase: {
     url: process.env.SUPABASE_URL || "",
     anonKey: process.env.SUPABASE_ANON_KEY || "",
+    serviceKey: process.env.SUPABASE_SERVICE_KEY || "", // For admin operations
   },
 };
 
 export const serverConfig: ServerConfig = {
   port: parseInt(process.env.PORT || "3000"),
   uploadDir: process.env.UPLOAD_DIR || "uploads",
-  // Use persistent disk path if available (Render), otherwise local
   outputDir:
     process.env.OUTPUT_DIR ||
     (process.env.RENDER_PERSISTENT_DISK ? "/data/output" : "data/output"),
-  extractionMode: (process.env.EXTRACTION_MODE as "main" | "test") || "main", // Default to 'main'
+  currentFolder: process.env.CURRENT_FOLDER || "main", // Default folder
 };
 
-// Helper function to get the current extraction directory
-export function getExtractionDir(): string {
-  const baseDir = serverConfig.outputDir;
-  return serverConfig.extractionMode === "test"
-    ? `${baseDir}/extractions-test`
-    : `${baseDir}/extractions`;
+// In-memory folder registry (in production, this could be cached in Redis or similar)
+let folderRegistry = new Map<string, FolderInfo>();
+
+// Initialize with default folders
+folderRegistry.set("main", {
+  name: "main",
+  displayName: "Main",
+  path: `${serverConfig.outputDir}/extractions-main`,
+  tableName: "resumes_main",
+  createdAt: new Date(),
+  isActive: true,
+});
+
+folderRegistry.set("test", {
+  name: "test",
+  displayName: "Test",
+  path: `${serverConfig.outputDir}/extractions-test`,
+  tableName: "resumes_test",
+  createdAt: new Date(),
+  isActive: true,
+});
+
+// Helper functions for folder management
+export function getAllFolders(): FolderInfo[] {
+  return Array.from(folderRegistry.values()).filter(f => f.isActive);
 }
 
-// Helper function to switch extraction mode
-export function setExtractionMode(mode: "main" | "test"): void {
-  const oldMode = serverConfig.extractionMode;
-  const oldDir = getExtractionDir();
+export function getFolderInfo(folderName: string): FolderInfo | null {
+  return folderRegistry.get(folderName) || null;
+}
 
-  serverConfig.extractionMode = mode;
-  const newDir = getExtractionDir();
+export function getCurrentExtractionDir(): string {
+  const folder = getFolderInfo(serverConfig.currentFolder);
+  return folder ? folder.path : `${serverConfig.outputDir}/extractions-main`;
+}
 
-  console.log(`🔄 Extraction mode switched: ${oldMode} → ${mode}`);
-  console.log(`📂 Directory changed: ${oldDir} → ${newDir}`);
+export function setCurrentFolder(folderName: string): boolean {
+  const folder = getFolderInfo(folderName);
+  if (folder && folder.isActive) {
+    const oldFolder = serverConfig.currentFolder;
+    serverConfig.currentFolder = folderName;
+    console.log(`🔄 Current folder switched: ${oldFolder} → ${folderName}`);
+    console.log(`📂 Directory: ${folder.path}`);
+    console.log(`🗃️ Table: ${folder.tableName}`);
+    return true;
+  }
+  return false;
+}
+
+export function createFolder(folderName: string, displayName?: string): FolderInfo {
+  // Validate folder name (alphanumeric and underscores only)
+  const sanitizedName = folderName.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+  
+  if (folderRegistry.has(sanitizedName)) {
+    throw new Error(`Folder '${sanitizedName}' already exists`);
+  }
+
+  if (sanitizedName.length < 1 || sanitizedName.length > 50) {
+    throw new Error('Folder name must be 1-50 characters');
+  }
+
+  const folderInfo: FolderInfo = {
+    name: sanitizedName,
+    displayName: displayName || sanitizedName,
+    path: `${serverConfig.outputDir}/extractions-${sanitizedName}`,
+    tableName: `resumes_${sanitizedName}`,
+    createdAt: new Date(),
+    isActive: true,
+  };
+
+  folderRegistry.set(sanitizedName, folderInfo);
+  
+  console.log(`📁 Created folder: ${folderInfo.displayName}`);
+  console.log(`   • Internal name: ${folderInfo.name}`);
+  console.log(`   • Path: ${folderInfo.path}`);
+  console.log(`   • Table: ${folderInfo.tableName}`);
+  
+  return folderInfo;
+}
+
+export function deleteFolder(folderName: string): boolean {
+  // Prevent deletion of default folders
+  if (folderName === 'main' || folderName === 'test') {
+    throw new Error('Cannot delete default folders (main/test)');
+  }
+
+  const folder = folderRegistry.get(folderName);
+  if (!folder) {
+    throw new Error(`Folder '${folderName}' not found`);
+  }
+
+  // Soft delete - mark as inactive
+  folder.isActive = false;
+  
+  console.log(`🗑️ Deleted folder: ${folder.displayName}`);
+  console.log(`   • Table ${folder.tableName} will be dropped`);
+  
+  // If this was the current folder, switch to main
+  if (serverConfig.currentFolder === folderName) {
+    setCurrentFolder('main');
+  }
+  
+  return true;
 }
 
 export function validateConfig(): void {
@@ -143,6 +239,8 @@ export function validateConfig(): void {
   if (!apiConfig.llama.apiKey) errors.push("LLAMA_CLOUD_API_KEY required");
   if (!apiConfig.openai.apiKey) errors.push("OPENAI_API_KEY required");
   if (!apiConfig.anthropic.apiKey) errors.push("ANTHROPIC_API_KEY required");
+  if (!apiConfig.supabase.url) errors.push("SUPABASE_URL required");
+  if (!apiConfig.supabase.anonKey) errors.push("SUPABASE_ANON_KEY required");
 
   if (errors.length > 0) {
     console.error("❌ Configuration errors:", errors);
@@ -150,20 +248,10 @@ export function validateConfig(): void {
   }
 
   console.log("✅ Configuration validated");
-  console.log(`⚡ MAXIMUM SPEED SETTINGS (30 concurrent extractions):`);
-  console.log(
-    `   • Extractions: ${config.concurrent.extraction} concurrent (MAXIMUM SPEED)`
-  );
+  console.log(`📁 Current folder: ${serverConfig.currentFolder}`);
+  console.log(`🗂️ Available folders: ${getAllFolders().map(f => f.name).join(', ')}`);
+  console.log(`⚡ Processing settings:`);
+  console.log(`   • Extractions: ${config.concurrent.extraction} concurrent`);
   console.log(`   • Scoring: ${config.concurrent.scoring} concurrent`);
   console.log(`   • Validation: ${config.concurrent.validation} concurrent`);
-  console.log(
-    `   • LlamaIndex delay: ${config.rateLimit.llamaDelay}ms between calls (MAXIMUM SPEED)`
-  );
-  console.log(
-    `   • Retry attempts: ${config.retries.maxAttempts} with exponential backoff`
-  );
-  console.log(`📊 Max batch size: ${config.files.maxBatch} resumes`);
-  console.log(
-    `⚡ GOAL: 100% extraction success for 700 resumes in 1-1.5 hours`
-  );
 }

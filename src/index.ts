@@ -5,7 +5,7 @@ import path from "path";
 import fs from "fs";
 import compression from "compression";
 import helmet from "helmet";
-import { validateConfig, serverConfig, getExtractionDir } from "./config";
+import { validateConfig, serverConfig, getCurrentExtractionDir } from "./config";
 import routes from "./routes";
 
 // Validate configuration
@@ -62,7 +62,7 @@ console.log(
 
 // Log extraction mode configuration
 console.log(
-  `📁 Extraction mode: ${serverConfig.extractionMode} → ${getExtractionDir()}`
+  `📁 Extraction mode: ${serverConfig.currentFolder} → ${getCurrentExtractionDir()}`
 );
 
 // Serve static files (the UI)
@@ -173,7 +173,7 @@ const server = app.listen(serverConfig.port, () => {
   console.log(`💾 Output directory: ${path.resolve(serverConfig.outputDir)}`);
   console.log(`📤 Upload directory: ${path.resolve(serverConfig.uploadDir)}`);
   console.log(`📁 Extraction folders: extractions/ & extractions-test/`);
-  console.log(`🎯 Current extraction mode: ${serverConfig.extractionMode}`);
+  console.log(`🎯 Current extraction mode: ${serverConfig.currentFolder}`);
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   console.log("📋 OPENAI-FOCUSED WORKFLOW (with dual extraction folders):");
   console.log(

@@ -8,7 +8,12 @@ import { LlamaExtractor } from "./LlamaExtractor";
 import { OpenAIScorer } from "./OpenAIScorer";
 import { AnthropicValidator } from "./AnthropicValidator";
 import { SupabaseStorage } from "./SupabaseStorage";
-import { config, serverConfig, getExtractionDir } from "../config";
+import {
+  config,
+  serverConfig,
+  getCurrentExtractionDir,
+  getFolderInfo,
+} from "../config";
 import {
   BatchJob,
   ResumeFile,
@@ -76,8 +81,11 @@ export class BulkResumeProcessor extends EventEmitter {
     );
   }
 
-  // Step 1: Extract resumes using LlamaIndex (HIGH-PERFORMANCE MODE)
-  async extractResumes(files: Express.Multer.File[]): Promise<string> {
+  // Step 1: Extract resumes using LlamaIndex (Updated for folder parameter)
+  async extractResumes(
+    files: Express.Multer.File[],
+    folderName: string = "main"
+  ): Promise<string> {
     const batchId = uuidv4();
 
     if (files.length > config.files.maxBatch) {
@@ -89,14 +97,9 @@ export class BulkResumeProcessor extends EventEmitter {
     // Log performance expectations with balanced settings
     const estimatedTimeMinutes = Math.ceil(
       files.length / (config.concurrent.extraction * 0.3)
-    ); // ~0.3 resumes per minute per thread (more conservative)
-    console.log(
-      `🎯 RELIABILITY ESTIMATE: ${files.length} resumes should complete in ~${estimatedTimeMinutes} minutes`
     );
     console.log(
-      `✅ TARGET: 100% extraction success with ${
-        files.length <= 700 ? "3-4 hour completion" : "proportional timing"
-      }`
+      `🎯 RELIABILITY ESTIMATE: ${files.length} resumes in folder '${folderName}' should complete in ~${estimatedTimeMinutes} minutes`
     );
 
     const resumeFiles: ResumeFile[] = files.map((file) => ({
@@ -106,24 +109,23 @@ export class BulkResumeProcessor extends EventEmitter {
       progress: { startTime: new Date() },
       results: {},
       retryCount: 0,
+      folderName: folderName, // Add folder context
     }));
 
     const batch: BatchJob = {
       id: batchId,
       status: "extracting",
       files: resumeFiles,
+      folderName: folderName, // Add folder context to batch
       metrics: this.initializeMetrics(files.length),
       createdAt: new Date(),
-      startedAt: new Date(), // Set startedAt during extraction phase for proper timing
+      startedAt: new Date(),
     };
 
     this.jobs.set(batchId, batch);
 
     console.log(
-      `🔄 Starting extraction for batch ${batchId} with ${files.length} files`
-    );
-    console.log(
-      `⚠️ Using ${config.concurrent.extraction} concurrent extractions with ${config.rateLimit.llamaDelay}ms delays`
+      `🔄 Starting extraction for batch ${batchId} with ${files.length} files in folder '${folderName}'`
     );
 
     // Update initial metrics to ensure progress tracking works immediately
@@ -144,9 +146,9 @@ export class BulkResumeProcessor extends EventEmitter {
   private async processExtractions(batch: BatchJob): Promise<void> {
     // Create a queue with very low concurrency and rate limiting
     const extractionQueue = new PQueue({
-      concurrency: config.concurrent.extraction, // Now 2 instead of 8
+      concurrency: config.concurrent.extraction,
       timeout: config.timeouts.extraction,
-      interval: config.rateLimit.llamaDelay, // 2 second delays between calls
+      interval: config.rateLimit.llamaDelay,
       intervalCap: 1,
     });
 
@@ -218,8 +220,14 @@ export class BulkResumeProcessor extends EventEmitter {
 
   private async extractFile(batch: BatchJob, file: ResumeFile): Promise<void> {
     try {
-      // Check if extraction already exists
-      const outputDir = getExtractionDir();
+      // Use folder from batch or current folder
+      const folderName =
+        batch.folderName || serverConfig.currentFolder || "main";
+      const folderInfo = getFolderInfo(folderName);
+      const outputDir = folderInfo
+        ? folderInfo.path
+        : getCurrentExtractionDir();
+
       const filename = `${path.basename(
         file.originalFile.originalname,
         ".pdf"
@@ -243,7 +251,9 @@ export class BulkResumeProcessor extends EventEmitter {
       file.status = "extracting";
       this.updateMetrics(batch);
 
-      console.log(`🔍 Extracting: ${file.originalFile.originalname}`);
+      console.log(
+        `🔍 Extracting: ${file.originalFile.originalname} to folder '${folderName}'`
+      );
 
       const extraction = await this.extractor.extractResume(
         file.originalFile.path
@@ -258,7 +268,9 @@ export class BulkResumeProcessor extends EventEmitter {
       // Upload to Supabase
       await this.uploadToSupabase(file, "extraction");
 
-      console.log(`✅ Extracted: ${file.originalFile.originalname}`);
+      console.log(
+        `✅ Extracted: ${file.originalFile.originalname} to folder '${folderName}'`
+      );
     } catch (error: any) {
       // Enhanced error handling for rate limits
       const errorMessage = error.message || "Unknown error";
@@ -588,7 +600,13 @@ export class BulkResumeProcessor extends EventEmitter {
 
   private async saveExtractionResult(file: ResumeFile): Promise<void> {
     try {
-      const outputDir = getExtractionDir();
+      const folderName =
+        file.folderName || serverConfig.currentFolder || "main";
+      const folderInfo = getFolderInfo(folderName);
+      const outputDir = folderInfo
+        ? folderInfo.path
+        : getCurrentExtractionDir();
+
       if (!fs.existsSync(outputDir)) {
         fs.mkdirSync(outputDir, { recursive: true });
       }
@@ -603,6 +621,8 @@ export class BulkResumeProcessor extends EventEmitter {
         filePath,
         JSON.stringify(file.results.extraction, null, 2)
       );
+
+      console.log(`💾 Saved extraction: ${filename} to folder '${folderName}'`);
     } catch (error) {
       console.error(
         `❌ Failed to save extraction for ${file.originalFile.originalname}:`,
@@ -613,7 +633,10 @@ export class BulkResumeProcessor extends EventEmitter {
 
   private async saveScoreResult(file: ResumeFile): Promise<void> {
     try {
-      const outputDir = path.join(serverConfig.outputDir, "scores");
+      const folderName =
+        file.folderName || serverConfig.currentFolder || "main";
+      const outputDir = path.join(serverConfig.outputDir, "scores", folderName);
+
       if (!fs.existsSync(outputDir)) {
         fs.mkdirSync(outputDir, { recursive: true });
       }
@@ -626,12 +649,14 @@ export class BulkResumeProcessor extends EventEmitter {
 
       const scoreData = {
         filename: file.originalFile.originalname,
+        folder: folderName,
         timestamp: new Date().toISOString(),
         processingTime: file.progress.totalDuration,
         scores: file.results.scores,
       };
 
       fs.writeFileSync(filePath, JSON.stringify(scoreData, null, 2));
+      console.log(`💾 Saved scores: ${filename} to folder '${folderName}'`);
     } catch (error) {
       console.error(
         `❌ Failed to save scores for ${file.originalFile.originalname}:`,
@@ -642,7 +667,14 @@ export class BulkResumeProcessor extends EventEmitter {
 
   private async saveValidationResult(file: ResumeFile): Promise<void> {
     try {
-      const outputDir = path.join(serverConfig.outputDir, "validations");
+      const folderName =
+        file.folderName || serverConfig.currentFolder || "main";
+      const outputDir = path.join(
+        serverConfig.outputDir,
+        "validations",
+        folderName
+      );
+
       if (!fs.existsSync(outputDir)) {
         fs.mkdirSync(outputDir, { recursive: true });
       }
@@ -655,6 +687,7 @@ export class BulkResumeProcessor extends EventEmitter {
 
       const validationData = {
         filename: file.originalFile.originalname,
+        folder: folderName,
         timestamp: new Date().toISOString(),
         processingTime: file.progress.totalDuration,
         originalScore: file.results.scores?.total_score || 0,
@@ -662,6 +695,7 @@ export class BulkResumeProcessor extends EventEmitter {
       };
 
       fs.writeFileSync(filePath, JSON.stringify(validationData, null, 2));
+      console.log(`💾 Saved validation: ${filename} to folder '${folderName}'`);
     } catch (error) {
       console.error(
         `❌ Failed to save validation for ${file.originalFile.originalname}:`,
@@ -689,7 +723,13 @@ export class BulkResumeProcessor extends EventEmitter {
 
   private async generateReport(batch: BatchJob): Promise<void> {
     try {
-      const reportDir = path.join(serverConfig.outputDir, "reports");
+      const folderName = batch.folderName || "main";
+      const reportDir = path.join(
+        serverConfig.outputDir,
+        "reports",
+        folderName
+      );
+
       if (!fs.existsSync(reportDir)) {
         fs.mkdirSync(reportDir, { recursive: true });
       }
@@ -704,6 +744,7 @@ export class BulkResumeProcessor extends EventEmitter {
 
       const report = {
         batchId: batch.id,
+        folder: folderName,
         summary: {
           totalFiles: batch.metrics.total,
           completed: batch.metrics.completed,
@@ -745,7 +786,9 @@ export class BulkResumeProcessor extends EventEmitter {
 
       const reportPath = path.join(reportDir, `batch-${batch.id}-report.json`);
       fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
-      console.log(`📊 Generated report: batch-${batch.id}-report.json`);
+      console.log(
+        `📊 Generated report: batch-${batch.id}-report.json in folder '${folderName}'`
+      );
     } catch (error) {
       console.error("❌ Failed to generate report:", error);
     }
@@ -754,7 +797,7 @@ export class BulkResumeProcessor extends EventEmitter {
   private initializeMetrics(totalFiles: number) {
     return {
       total: totalFiles,
-      pending: totalFiles, // Initially all files are pending
+      pending: totalFiles,
       extracting: 0,
       extracted: 0,
       scoring: 0,
@@ -926,7 +969,8 @@ export class BulkResumeProcessor extends EventEmitter {
   ): Promise<void> {
     try {
       const filename = file.originalFile.originalname;
-      const mode = serverConfig.extractionMode;
+      const folderName =
+        file.folderName || serverConfig.currentFolder || "main";
 
       switch (type) {
         case "extraction":
@@ -934,7 +978,7 @@ export class BulkResumeProcessor extends EventEmitter {
             await this.supabase.saveExtraction(
               filename,
               file.results.extraction,
-              mode
+              folderName
             );
           }
           break;
@@ -944,7 +988,7 @@ export class BulkResumeProcessor extends EventEmitter {
             await this.supabase.updateScores(
               filename,
               file.results.scores,
-              mode
+              folderName
             );
           }
           break;
@@ -954,7 +998,7 @@ export class BulkResumeProcessor extends EventEmitter {
             await this.supabase.updateValidation(
               filename,
               file.results.validation,
-              mode
+              folderName
             );
           }
           break;

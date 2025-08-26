@@ -1,4 +1,4 @@
-// src/routes/index.ts
+// src/routes/index.ts - Enhanced with folder management routes
 import express from "express";
 import { ResumeController } from "../controllers/ResumeController";
 import { uploadMiddleware } from "../middleware/uploadMiddleware";
@@ -24,7 +24,56 @@ const handleValidationErrors = (
   return next();
 };
 
-// Validation rules
+// =====================================================
+// FOLDER MANAGEMENT ROUTES
+// =====================================================
+
+// Validation rules for folder operations
+const validateFolderName = [
+  body("name")
+    .isString()
+    .isLength({ min: 1, max: 50 })
+    .matches(/^[a-zA-Z0-9_-]+$/)
+    .withMessage("Folder name must be 1-50 characters and contain only letters, numbers, underscores, and hyphens"),
+  handleValidationErrors,
+];
+
+const validateFolderParam = [
+  param("folderName")
+    .isString()
+    .isLength({ min: 1, max: 50 })
+    .matches(/^[a-zA-Z0-9_-]+$/)
+    .withMessage("Invalid folder name format"),
+  handleValidationErrors,
+];
+
+// Get all folders with stats
+router.get("/folders", resumeController.getFolders);
+
+// Create new folder
+router.post("/folders", validateFolderName, resumeController.createFolder);
+
+// Delete folder
+router.delete("/folders/:folderName", validateFolderParam, resumeController.deleteFolder);
+
+// Get current folder
+router.get("/current-folder", resumeController.getCurrentFolder);
+
+// Switch current folder
+router.post("/current-folder", 
+  body("folderName").isString().notEmpty().withMessage("Folder name is required"),
+  handleValidationErrors,
+  resumeController.switchCurrentFolder
+);
+
+// Validate folder structure
+router.get("/folders/validate", resumeController.validateFolders);
+
+// =====================================================
+// EXISTING RESUME PROCESSING ROUTES (Updated)
+// =====================================================
+
+// Validation rules (existing)
 const validateJobConfig = [
   body("jobDescription")
     .isString()
@@ -51,23 +100,23 @@ const validateDownloadType = [
   handleValidationErrors,
 ];
 
-// Step 1: Extract resumes to JSON using LlamaIndex
+// Step 1: Extract resumes to JSON using LlamaIndex (now folder-aware)
 router.post(
   "/extract",
   uploadMiddleware.array("resumes", 5000),
   resumeController.extractResumes
 );
 
-// Step 2: Set job configuration
+// Step 2: Set job configuration (unchanged)
 router.post("/config", validateJobConfig, resumeController.setJobConfiguration);
 
-// Step 3: Get extracted files (auto-detection)
+// Step 3: Get extracted files (now folder-aware)
 router.get("/extracted-files", resumeController.getExtractedFiles);
 
-// Step 3: Start evaluation (OpenAI scoring only)
+// Step 3: Start evaluation (now folder-aware)
 router.post("/start-evaluation", resumeController.startEvaluation);
 
-// Step 4: Start Anthropic validation (separate from OpenAI)
+// Step 4: Start Anthropic validation (unchanged)
 router.post(
   "/start-anthropic-validation",
   resumeController.startAnthropicValidation
@@ -80,7 +129,7 @@ router.get(
   resumeController.getBatchProgress
 );
 
-// Batch control
+// Batch control (unchanged)
 router.post(
   "/batch/:batchId/pause",
   validateBatchId,
@@ -101,7 +150,7 @@ router.post(
 
 router.delete("/batch/:batchId", validateBatchId, resumeController.deleteBatch);
 
-// Download results
+// Download results (unchanged)
 router.get(
   "/batch/:batchId/download/:type",
   validateBatchId,
@@ -109,12 +158,19 @@ router.get(
   resumeController.downloadResults
 );
 
-// Extraction mode management
-router.post("/extraction-mode", resumeController.switchExtractionMode);
-router.get("/extraction-mode", resumeController.getExtractionMode);
-
-// Management routes
+// Management routes (updated)
 router.get("/batches", resumeController.getAllBatches);
 router.get("/health", resumeController.getSystemHealth);
+
+// Legacy routes for backward compatibility (these now use current folder)
+router.post("/extraction-mode", (req, res) => {
+  // Legacy route - redirect to current folder switching
+  resumeController.switchCurrentFolder(req, res);
+});
+
+router.get("/extraction-mode", (req, res) => {
+  // Legacy route - redirect to current folder info
+  resumeController.getCurrentFolder(req, res);
+});
 
 export default router;
