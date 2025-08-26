@@ -82,6 +82,12 @@ router.post(
 // Validate folder structure
 router.get("/folders/validate", resumeController.validateFolders);
 
+// Debug endpoint to check folder sync status
+router.get("/folders/debug", resumeController.debugFolders);
+
+// Force sync folders from database
+router.post("/folders/sync", resumeController.forceSyncFolders);
+
 // =====================================================
 // EXISTING RESUME PROCESSING ROUTES (Updated)
 // =====================================================

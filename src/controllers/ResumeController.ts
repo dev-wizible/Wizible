@@ -283,6 +283,76 @@ export class ResumeController {
     }
   };
 
+  // Debug endpoint to see folder sync status
+  debugFolders = async (req: Request, res: Response): Promise<void> => {
+    try {
+      // Get folders from memory
+      const memoryFolders = getAllFolders();
+
+      // Get folders from database
+      const dbFolders = await this.folderManager.loadFoldersFromDatabase();
+
+      // Get current folder from database
+      const dbCurrentFolder =
+        await this.folderManager.getCurrentFolderFromDatabase();
+
+      res.status(200).json({
+        success: true,
+        data: {
+          memory: {
+            folders: memoryFolders,
+            currentFolder: serverConfig.currentFolder,
+            count: memoryFolders.length,
+          },
+          database: {
+            folders: dbFolders,
+            currentFolder: dbCurrentFolder,
+            count: dbFolders.length,
+          },
+          sync: {
+            inSync: memoryFolders.length === dbFolders.length,
+            lastSyncAttempt: "Check server logs",
+          },
+        },
+      });
+    } catch (error) {
+      console.error("Error in debug folders:", error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : "Internal server error",
+      });
+    }
+  };
+
+  // Force sync folders from database
+  forceSyncFolders = async (req: Request, res: Response): Promise<void> => {
+    try {
+      console.log("🔄 Force syncing folders from database...");
+
+      // Sync folders from database
+      await syncFoldersFromDatabase(this.folderManager);
+
+      // Get updated folder list
+      const folders = getAllFolders();
+
+      res.status(200).json({
+        success: true,
+        data: {
+          message: "Folders synced from database",
+          folders: folders,
+          currentFolder: serverConfig.currentFolder,
+          count: folders.length,
+        },
+      });
+    } catch (error) {
+      console.error("Error force syncing folders:", error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : "Internal server error",
+      });
+    }
+  };
+
   // =====================================================
   // EXISTING RESUME PROCESSING ENDPOINTS (Updated)
   // =====================================================
