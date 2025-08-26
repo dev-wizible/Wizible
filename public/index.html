@@ -1403,17 +1403,30 @@
             this.startAnthropicValidation.bind(this)
           );
 
-          // Configuration validation (existing)
-          safeAddEventListener(
-            "jobDescription",
-            "input",
-            this.validateConfiguration.bind(this)
-          );
-          safeAddEventListener(
-            "evaluationRubric",
-            "input",
-            this.validateConfiguration.bind(this)
-          );
+          // Configuration validation (with better event handling)
+          const jobDescElement = document.getElementById("jobDescription");
+          const rubricElement = document.getElementById("evaluationRubric");
+
+          if (jobDescElement && rubricElement) {
+            // Use both 'input' and 'keyup' events for better responsiveness
+            jobDescElement.addEventListener("input", () => {
+              console.log("📝 Job description changed");
+              this.validateAndUpdateConfigButton();
+            });
+
+            jobDescElement.addEventListener("keyup", () => {
+              this.validateAndUpdateConfigButton();
+            });
+
+            rubricElement.addEventListener("input", () => {
+              console.log("📝 Evaluation rubric changed");
+              this.validateAndUpdateConfigButton();
+            });
+
+            rubricElement.addEventListener("keyup", () => {
+              this.validateAndUpdateConfigButton();
+            });
+          }
 
           // Modal close on overlay click
           document
@@ -1442,6 +1455,10 @@
             if (result.success) {
               this.folders = result.data.folders;
               this.currentFolder = result.data.currentFolder;
+
+              // Try to restore last selected folder from localStorage
+              await this.restoreLastSelectedFolder();
+
               this.renderFolders();
               this.updateCurrentFolderDisplay();
               this.addLog(
@@ -1453,6 +1470,58 @@
             }
           } catch (error) {
             this.addLog(`Error loading folders: ${error.message}`, "error");
+          }
+        }
+
+        async restoreLastSelectedFolder() {
+          try {
+            const lastSelectedFolder =
+              localStorage.getItem("lastSelectedFolder");
+
+            if (lastSelectedFolder) {
+              // Check if the folder still exists
+              const folderExists = this.folders.find(
+                (f) => f.name === lastSelectedFolder
+              );
+
+              if (folderExists && lastSelectedFolder !== this.currentFolder) {
+                this.addLog(
+                  `🔄 Restoring last selected folder: ${lastSelectedFolder}`,
+                  "info"
+                );
+
+                // Switch to the last selected folder
+                const response = await fetch(
+                  `${this.apiBaseUrl}/api/current-folder`,
+                  {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ folderName: lastSelectedFolder }),
+                  }
+                );
+
+                const result = await response.json();
+
+                if (result.success) {
+                  this.currentFolder = lastSelectedFolder;
+                  this.addLog(
+                    `✅ Restored folder: ${lastSelectedFolder}`,
+                    "success"
+                  );
+                } else {
+                  this.addLog(
+                    `Failed to restore folder: ${result.error}`,
+                    "warning"
+                  );
+                  // Clear invalid folder from localStorage
+                  localStorage.removeItem("lastSelectedFolder");
+                }
+              }
+            }
+          } catch (error) {
+            this.addLog(`Error restoring folder: ${error.message}`, "warning");
+            // Clear problematic folder from localStorage
+            localStorage.removeItem("lastSelectedFolder");
           }
         }
 
@@ -1536,6 +1605,10 @@
 
             if (result.success) {
               this.currentFolder = folderName;
+
+              // Save the selected folder to localStorage
+              localStorage.setItem("lastSelectedFolder", folderName);
+
               this.addLog(
                 `✅ Switched to folder: ${
                   result.data.folderInfo?.displayName || folderName
@@ -1670,6 +1743,9 @@
               );
               this.hideCreateFolderModal();
               await this.loadFolders(); // Refresh the folders list
+
+              // Automatically select the newly created folder
+              await this.selectFolder(name);
             } else {
               this.addLog(`Failed to create folder: ${result.error}`, "error");
             }
@@ -1913,8 +1989,9 @@
               this.files.length === 0 || !this.currentFolder;
           }
 
+          // Use the new validation method for config button
           if (saveConfigBtn) {
-            saveConfigBtn.disabled = !this.validateConfiguration();
+            this.validateAndUpdateConfigButton();
           }
 
           if (downloadExtractionsBtn) {
@@ -1932,13 +2009,46 @@
         }
 
         validateConfiguration() {
-          const jobDesc = document
-            .getElementById("jobDescription")
-            .value.trim();
-          const rubric = document
-            .getElementById("evaluationRubric")
-            .value.trim();
-          return jobDesc.length >= 20 && rubric.length >= 20;
+          const jobDescElement = document.getElementById("jobDescription");
+          const rubricElement = document.getElementById("evaluationRubric");
+
+          if (!jobDescElement || !rubricElement) {
+            console.log("❌ Configuration elements not found");
+            return false;
+          }
+
+          const jobDesc = jobDescElement.value.trim();
+          const rubric = rubricElement.value.trim();
+
+          const isValid = jobDesc.length >= 10 && rubric.length >= 20;
+
+          console.log(`🔧 Validation check:`, {
+            jobDescLength: jobDesc.length,
+            rubricLength: rubric.length,
+            isValid: isValid,
+          });
+
+          return isValid;
+        }
+
+        // Add this new method to properly update the button state
+        validateAndUpdateConfigButton() {
+          const saveConfigBtn = document.getElementById("saveConfig");
+          if (saveConfigBtn) {
+            const isValid = this.validateConfiguration();
+            saveConfigBtn.disabled = !isValid;
+
+            // Visual feedback
+            if (isValid) {
+              saveConfigBtn.style.opacity = "1";
+              saveConfigBtn.style.cursor = "pointer";
+              console.log("✅ Configuration is valid - button enabled");
+            } else {
+              saveConfigBtn.style.opacity = "0.6";
+              saveConfigBtn.style.cursor = "not-allowed";
+              console.log("❌ Configuration invalid - button disabled");
+            }
+          }
         }
 
         async saveConfiguration() {
