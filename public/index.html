@@ -1462,7 +1462,7 @@
               this.renderFolders();
               this.updateCurrentFolderDisplay();
 
-              // Load configuration for current folder
+              // Load configuration for current folder (after any folder restoration)
               await this.loadFolderConfiguration();
 
               this.addLog(
@@ -1804,7 +1804,8 @@
               await this.loadFolders(); // Refresh the folders list
 
               // Automatically select the newly created folder
-              await this.selectFolder(name);
+              // Use the actual folder name returned by the backend (which may be sanitized)
+              await this.selectFolder(result.data.folder.name);
             } else {
               this.addLog(`Failed to create folder: ${result.error}`, "error");
             }

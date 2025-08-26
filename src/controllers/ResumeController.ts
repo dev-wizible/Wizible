@@ -350,7 +350,22 @@ export class ResumeController {
     try {
       const { jobDescription, evaluationRubric } = req.body;
 
+      console.log(
+        `🔧 Setting job configuration for folder '${serverConfig.currentFolder}':`
+      );
+      console.log(
+        `   • Job description length: ${jobDescription?.length || 0}`
+      );
+      console.log(
+        `   • Evaluation rubric length: ${evaluationRubric?.length || 0}`
+      );
+
       if (!jobDescription?.trim() || jobDescription.trim().length < 20) {
+        console.log(
+          `❌ Job description validation failed: ${
+            jobDescription?.trim()?.length || 0
+          } characters`
+        );
         res.status(400).json({
           success: false,
           error: "Job description must be at least 20 characters",
@@ -359,6 +374,11 @@ export class ResumeController {
       }
 
       if (!evaluationRubric?.trim() || evaluationRubric.trim().length < 20) {
+        console.log(
+          `❌ Evaluation rubric validation failed: ${
+            evaluationRubric?.trim()?.length || 0
+          } characters`
+        );
         res.status(400).json({
           success: false,
           error: "Evaluation rubric must be at least 20 characters",

@@ -15,6 +15,9 @@ const handleValidationErrors = (
 ) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
+    console.log("❌ Validation middleware failed:");
+    console.log(`   • Request body:`, req.body);
+    console.log(`   • Validation errors:`, errors.array());
     return res.status(400).json({
       success: false,
       error: "Validation failed",
