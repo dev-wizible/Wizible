@@ -562,33 +562,62 @@ export class ResumeController {
     try {
       const extractionsDir = getCurrentExtractionDir();
       const currentFolder = serverConfig.currentFolder;
+      const folderInfo = getFolderInfo(currentFolder);
 
-      if (!fs.existsSync(extractionsDir)) {
-        res.status(200).json({
-          success: true,
-          data: {
-            files: [],
-            folder: currentFolder,
-            folderInfo: getFolderInfo(currentFolder),
-          },
-        });
-        return;
+      let files: any[] = [];
+
+      // First, check for physical JSON files
+      if (fs.existsSync(extractionsDir)) {
+        files = fs
+          .readdirSync(extractionsDir)
+          .filter((file) => file.endsWith(".json"))
+          .map((file) => {
+            const filePath = path.join(extractionsDir, file);
+            const stats = fs.statSync(filePath);
+            return {
+              name: file,
+              size: stats.size,
+              modified: stats.mtime,
+              path: filePath,
+              source: "filesystem",
+            };
+          });
       }
 
-      const files = fs
-        .readdirSync(extractionsDir)
-        .filter((file) => file.endsWith(".json"))
-        .map((file) => {
-          const filePath = path.join(extractionsDir, file);
-          const stats = fs.statSync(filePath);
-          return {
-            name: file,
-            size: stats.size,
-            modified: stats.mtime,
-            path: filePath,
-          };
-        })
-        .sort((a, b) => b.modified.getTime() - a.modified.getTime());
+      // Also check database for existing extracted data
+      if (folderInfo && files.length === 0) {
+        try {
+          // Load actual records to get filenames
+          const { data: records, error } = await (
+            this.folderManager as any
+          ).supabase
+            .from(folderInfo.tableName)
+            .select("filename, created_at")
+            .not("extraction_data", "is", null);
+
+          if (!error && records && records.length > 0) {
+            // Create virtual file entries using actual filenames
+            files = records.map((record, i) => ({
+              name: record.filename || `database_record_${i + 1}.json`,
+              size: 1024, // Placeholder size
+              modified: new Date(record.created_at || new Date()),
+              path: `database://${folderInfo.tableName}`,
+              source: "database",
+            }));
+
+            console.log(
+              `📊 Found ${records.length} records in database table ${folderInfo.tableName}`
+            );
+          }
+        } catch (dbError) {
+          console.warn(
+            "⚠️ Could not check database for existing data:",
+            dbError
+          );
+        }
+      }
+
+      files.sort((a, b) => b.modified.getTime() - a.modified.getTime());
 
       res.status(200).json({
         success: true,
@@ -615,26 +644,6 @@ export class ResumeController {
       const currentFolder = serverConfig.currentFolder;
       const extractionsDir = getCurrentExtractionDir();
 
-      if (!fs.existsSync(extractionsDir)) {
-        res.status(400).json({
-          success: false,
-          error: `No extracted files found in folder '${currentFolder}'. Please complete extraction first.`,
-        });
-        return;
-      }
-
-      const extractedFiles = fs
-        .readdirSync(extractionsDir)
-        .filter((file) => file.endsWith(".json"));
-
-      if (extractedFiles.length === 0) {
-        res.status(400).json({
-          success: false,
-          error: `No extracted JSON files found in folder '${currentFolder}' for evaluation.`,
-        });
-        return;
-      }
-
       // Load folder-specific configuration
       const currentFolderInfo = getFolderInfo(serverConfig.currentFolder);
       if (!currentFolderInfo) {
@@ -660,11 +669,65 @@ export class ResumeController {
 
       const jobConfig = JSON.parse(fs.readFileSync(configPath, "utf8"));
 
-      const batchId = await this.createVirtualBatch(
-        extractedFiles,
-        jobConfig,
-        currentFolder
-      );
+      // Check for extracted files in filesystem first
+      let extractedFiles: string[] = [];
+      let useDatabase = false;
+
+      if (fs.existsSync(extractionsDir)) {
+        extractedFiles = fs
+          .readdirSync(extractionsDir)
+          .filter((file) => file.endsWith(".json"));
+      }
+
+      // If no filesystem files, check database
+      if (extractedFiles.length === 0) {
+        try {
+          // Load actual records to get filenames for processing
+          const { data: records, error } = await (
+            this.folderManager as any
+          ).supabase
+            .from(currentFolderInfo.tableName)
+            .select("filename")
+            .not("extraction_data", "is", null);
+
+          if (!error && records && records.length > 0) {
+            console.log(
+              `📊 Using ${records.length} records from database table ${currentFolderInfo.tableName}`
+            );
+            useDatabase = true;
+            // Use actual filenames from database records
+            extractedFiles = records.map(
+              (record, i) => record.filename || `database_record_${i + 1}.json`
+            );
+          }
+        } catch (dbError) {
+          console.warn(
+            "⚠️ Could not check database for existing data:",
+            dbError
+          );
+        }
+      }
+
+      if (extractedFiles.length === 0) {
+        res.status(400).json({
+          success: false,
+          error: `No extracted data found in folder '${currentFolder}'. Please complete extraction first.`,
+        });
+        return;
+      }
+
+      const batchId = useDatabase
+        ? await this.createDatabaseBatch(
+            currentFolderInfo,
+            jobConfig,
+            currentFolder
+          )
+        : await this.createVirtualBatch(
+            extractedFiles,
+            jobConfig,
+            currentFolder
+          );
+
       await this.processor.startProcessing(batchId);
 
       res.status(200).json({
@@ -674,7 +737,12 @@ export class ResumeController {
           totalFiles: extractedFiles.length,
           status: "processing",
           folder: currentFolder,
-          message: `OpenAI scoring started for ${extractedFiles.length} files in folder '${currentFolder}' - processing through OpenAI GPT-4o-mini`,
+          source: useDatabase ? "database" : "filesystem",
+          message: `OpenAI scoring started for ${
+            extractedFiles.length
+          } files in folder '${currentFolder}' from ${
+            useDatabase ? "database" : "filesystem"
+          } - processing through OpenAI GPT-4o-mini`,
         },
       });
     } catch (error) {
@@ -783,6 +851,99 @@ export class ResumeController {
 
     console.log(
       `📦 Created virtual batch ${batchId} with ${resumeFiles.length} pre-extracted files in folder '${folderName}'`
+    );
+
+    return batchId;
+  }
+
+  private async createDatabaseBatch(
+    folderInfo: any,
+    jobConfig: JobConfig,
+    folderName: string
+  ): Promise<string> {
+    // Load data from database
+    const { data: records, error } = await (this.folderManager as any).supabase
+      .from(folderInfo.tableName)
+      .select("*")
+      .not("extraction_data", "is", null);
+
+    if (error) {
+      throw new Error(`Failed to load data from database: ${error.message}`);
+    }
+
+    if (!records || records.length === 0) {
+      throw new Error("No extracted data found in database");
+    }
+
+    console.log(
+      `📊 Loaded ${records.length} records from database table ${folderInfo.tableName}`
+    );
+
+    // Create virtual files from database records
+    const virtualFiles: Express.Multer.File[] = records.map((record, index) => {
+      return {
+        fieldname: "resumes",
+        originalname: record.filename || `database_record_${index + 1}.pdf`,
+        encoding: "7bit",
+        mimetype: "application/pdf",
+        size: 1024, // Placeholder size
+        destination: serverConfig.uploadDir,
+        filename: `database_${Date.now()}_${index}.pdf`,
+        path: `database://${folderInfo.tableName}/${record.id}`, // Special path for database records
+        buffer: Buffer.from(""),
+        stream: null as any,
+      } as Express.Multer.File;
+    });
+
+    const batchId = uuidv4();
+
+    const resumeFiles = virtualFiles.map((file, index) => {
+      const record = records[index];
+
+      return {
+        id: uuidv4(),
+        originalFile: file,
+        status: "pending" as const,
+        progress: { startTime: new Date() },
+        results: {
+          extraction: record.extraction_data, // Use data from database
+        },
+        retryCount: 0,
+        folderName: folderName,
+        databaseRecord: record, // Store original database record
+      };
+    });
+
+    const batch = {
+      id: batchId,
+      status: "configured" as const,
+      files: resumeFiles,
+      jobConfig,
+      folderName: folderName,
+      source: "database" as const,
+      metrics: {
+        total: resumeFiles.length,
+        pending: resumeFiles.length,
+        extracting: 0,
+        extracted: resumeFiles.length, // Already extracted in database
+        scoring: 0,
+        scored: 0,
+        validating: 0,
+        completed: 0,
+        failed: 0,
+        timing: {
+          elapsedMs: 0,
+          throughputPerHour: 0,
+        },
+      },
+      createdAt: new Date(),
+      configuredAt: new Date(),
+    };
+
+    (this.processor as any).jobs.set(batchId, batch);
+
+    console.log(
+      `📦 Created database batch ${batchId} with ${resumeFiles.length} records from table '${folderInfo.tableName}'`
     );
 
     return batchId;

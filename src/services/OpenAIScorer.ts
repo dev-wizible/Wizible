@@ -100,7 +100,7 @@ export class OpenAIScorer {
     evaluationRubric: string
   ): string {
     return `
-You are an expert recruiter and evaluator. Analyze the candidate's resume against the provided evaluation rubric and return a structured JSON response.
+You are an expert AI recruiter and resume evaluator. Your task is to analyze a candidate's resume against the provided evaluation rubric and return a structured JSON response.
 
 **EVALUATION RUBRIC:**
 ${evaluationRubric}
@@ -108,31 +108,48 @@ ${evaluationRubric}
 **CANDIDATE RESUME DATA:**
 ${JSON.stringify(resumeData, null, 2)}
 
-**INSTRUCTIONS:**
-1. Carefully read the evaluation rubric to understand:
-   - What criteria to evaluate
-   - What scoring format to use (Yes/No, numerical, categories, etc.)
-   - What JSON structure is expected in the output
+**DYNAMIC ANALYSIS INSTRUCTIONS:**
 
-2. If the rubric specifies a JSON output format, follow that EXACT format
-3. If the rubric doesn't specify a format, use this default structure:
-   {
-     "candidate_name": "Full name from resume data",
-     "evaluation_scores": [
-       {
-         "parameter": "Criterion name",
-         "score": "Score according to rubric format",
-         "reasoning": "Detailed explanation"
-       }
-     ]
-   }
+1. **PARSE THE RUBRIC STRUCTURE:**
+   - Identify all evaluation criteria/attributes mentioned in the rubric
+   - Determine the scoring format for each criterion (Yes/No, scales, categories, etc.)
+   - Extract any specific JSON field names if provided in the rubric
+   - Note any example JSON structure shown in the rubric
 
-4. Extract candidate name from resumeData.basics.name if available
-5. Be objective and evidence-based in your evaluation
-6. Provide detailed reasoning for each score
-7. Follow the rubric's scoring system exactly (don't convert Yes/No to numbers, etc.)
+2. **SCORING METHODOLOGY:**
+   - Evaluate each criterion objectively based on evidence from the resume
+   - Use ONLY the scoring options specified in the rubric (don't create new values)
+   - Provide detailed, evidence-based reasoning for each score
+   - Extract candidate name from resumeData.basics.name or resumeData.personal_information.name
 
-**CRITICAL:** Your response must be valid JSON that matches the format specified in the evaluation rubric. If the rubric shows an example JSON structure, replicate that structure exactly.
+3. **JSON OUTPUT REQUIREMENTS:**
+   - If the rubric contains a JSON example with field names, use those EXACT field names
+   - If the rubric shows field name patterns, follow them precisely
+   - Each criterion should have both "score" and "reasoning" fields
+   - Include "candidate_name" field with the extracted name
+   - Ensure all field names are consistent with any naming convention shown in the rubric
+
+4. **FIELD NAME CONSISTENCY:**
+   - If the rubric uses snake_case (like "product_management_experience"), use snake_case
+   - If the rubric uses camelCase (like "productManagementExperience"), use camelCase  
+   - Never modify, shorten, or change field names from what's specified in the rubric
+   - Maintain exact spelling and formatting of field names
+
+5. **QUALITY STANDARDS:**
+   - Base all scores strictly on resume evidence, not assumptions
+   - Provide specific examples from the resume in reasoning
+   - Be consistent in scoring methodology across all criteria
+   - Ensure reasoning clearly justifies the score given
+
+**OUTPUT FORMAT:**
+Return ONLY a valid JSON object following the structure and field names specified in the evaluation rubric. Do not include any additional text, explanations, or markdown formatting.
+
+**CRITICAL REQUIREMENTS:**
+- Must be valid, parseable JSON
+- Must include all criteria mentioned in the rubric
+- Must use exact field names as shown in any rubric examples
+- Must follow the scoring values specified in the rubric
+- Must include detailed reasoning for each score
 `;
   }
 

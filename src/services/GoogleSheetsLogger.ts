@@ -8,128 +8,20 @@ export class GoogleSheetsLogger {
   private sheetId: string;
   private initialized = false;
 
-  // Define the exact structure for the new evaluation criteria with score/reason pairs
-  private readonly SHEET_STRUCTURE = {
-    // Row 1: Category headers with merged cells (36 columns: A-AJ)
-    categoryHeaders: [
-      "", // A1
-      "", // B1
-      "", // C1
-      "OPEN AI EVALUATION", // D1
-      "", // E1
-      "", // F1
-      "", // G1
-      "", // H1
-      "", // I1
-      "", // J1
-      "", // K1
-      "", // L1
-      "", // M1
-      "", // N1
-      "", // O1
-      "", // P1
-      "", // Q1
-      "", // R1
-      "", // S1
-      "", // T1
-      "", // U1
-      "", // V1
-      "", // W1
-      "", // X1
-      "", // Y1
-      "", // Z1
-      "", // AA1
-      "", // AB1
-      "", // AC1
-      "", // AD1
-      "", // AE1
-      "", // AF1
-      "", // AG1
-      "", // AH1
-      "", // AI1
-      "", // AJ1
-    ],
-
-    // Row 2: Column headers with Score/Reason pairs (36 columns: A-AJ)
-    columnHeaders: [
-      "Candidate Name", // A2
-      "Candidate Resume Link", // B2
-      "Candidate Resume JSON", // C2
-      "JD Specific Score", // D2
-      "", // E2
-      "", // F2
-      "", // G2
-      "", // H2
-      "", // I2
-      "", // J2
-      "", // K2
-      "", // L2
-      "", // M2
-      "", // N2
-      "", // O2
-      "", // P2
-      "", // Q2
-      "", // R2
-      "", // S2
-      "General Score", // T2
-      "", // U2
-      "", // V2
-      "", // W2
-      "", // X2
-      "", // Y2
-      "", // Z2
-      "", // AA2
-      "", // AB2
-      "", // AC2
-      "", // AD2
-      "", // AE2
-      "", // AF2
-      "", // AG2
-      "JD Specific Score", // AH2
-      "General Score", // AI2
-      "Total Score", // AJ2
-    ],
-
-    // Row 3: Criteria names (36 columns: A-AJ)
-    criteriaNames: [
-      "", // A3
-      "", // B3
-      "", // C3
-      "Building deep understanding of any target user segment rather quickly", // D3
-      "", // E3
-      "Data driven experimentation oriented marketeer", // F3
-      "", // G3
-      "Market research and go to market strategy development", // H3
-      "", // I3
-      "Understanding of multiple marketing channels", // J3
-      "", // K3
-      "Managing reasonable marketing budgets independently", // L3
-      "", // M3
-      "Marketing analytical skill", // N3
-      "", // O3
-      "Creative & resourceful problem solver", // P3
-      "", // Q3
-      "Thinks and operates like a founder but in an operator role", // R3
-      "", // S3
-      "Career Growth Rate", // T3
-      "", // U3
-      "Education Pedigree", // V3
-      "", // W3
-      "Company Pedigree", // X3
-      "", // Y3
-      "Team Size Management", // Z3
-      "", // AA3
-      "Outstanding Impact", // AB3
-      "", // AC3
-      "StartUp Experience", // AD3
-      "", // AE3
-      "Awards and Recognition", // AF3
-      "", // AG3
-      "", // AH3
-      "", // AI3
-      "", // AJ3
-    ],
-  };
+  // Simplified structure - just the data, no headers
+  private readonly EXPECTED_CRITERIA = [
+    "product_management_experience",
+    "two_plus_years_pm",
+    "b2c_company_experience",
+    "b2b_ai_product_management_company_experience",
+    "b2b_product_management_experience_in_a_b2b_software_product_company_selling_to_msmes_kirana_stores_agriculture_workers_in_india",
+    "impact_of_work_done",
+    "ai_application_layer_experience",
+    "top_company_experience",
+    "career_growth",
+    "awards_or_recognition",
+    "founder_or_founding_member",
+  ];
 
   constructor() {
     this.sheetId = process.env.GOOGLE_SHEET_ID || "";
@@ -172,182 +64,198 @@ export class GoogleSheetsLogger {
 
   private async setupSheetStructure(): Promise<void> {
     try {
-      // Check if structure already exists
-      const response = await this.sheets.spreadsheets.values.get({
+      // Verify the sheet exists
+      await this.sheets.spreadsheets.get({
         spreadsheetId: this.sheetId,
-        range: "A1:AJ3",
       });
 
-      if (!response.data.values || response.data.values.length < 3) {
-        // Setup the complete structure
-        await this.createSheetStructure();
+      // Check if headers already exist
+      const headerCheck = await this.sheets.spreadsheets.values.get({
+        spreadsheetId: this.sheetId,
+        range: "A1:AZ1",
+      });
+
+      const existingHeaders = headerCheck.data.values?.[0] || [];
+
+      // If no headers or headers are incomplete, create/update them
+      if (
+        existingHeaders.length === 0 ||
+        existingHeaders[0] !== "Candidate Name"
+      ) {
+        await this.createSheetHeaders();
       }
+
+      console.log("📝 Google Sheet verified and ready for data logging");
     } catch (error) {
-      console.warn("⚠️ Failed to setup sheet structure:", error);
+      console.warn("⚠️ Failed to verify sheet:", error);
     }
   }
 
-  private async createSheetStructure(): Promise<void> {
+  private async createSheetHeaders(): Promise<void> {
     try {
-      // Clear the sheet first
-      await this.sheets.spreadsheets.values.clear({
-        spreadsheetId: this.sheetId,
-        range: "A1:ZZ1000",
-      });
-
-      // Add category headers (Row 1)
-      const categoryRow = this.SHEET_STRUCTURE.categoryHeaders;
-
-      // Add column headers (Row 2)
-      const columnRow = this.SHEET_STRUCTURE.columnHeaders;
-
-      // Add criteria names (Row 3)
-      const criteriaRow = this.SHEET_STRUCTURE.criteriaNames;
-
-      // Update all three rows
-      await this.sheets.spreadsheets.values.update({
-        spreadsheetId: this.sheetId,
-        range: "A1:AJ3",
-        valueInputOption: "RAW",
-        requestBody: {
-          values: [categoryRow, columnRow, criteriaRow],
-        },
-      });
-
-      // Format the headers and merge cells
-      await this.formatHeaders();
-
-      console.log("📝 Created new evaluation structure sheet");
-    } catch (error) {
-      console.error("❌ Failed to create sheet structure:", error);
-    }
-  }
-
-  private async formatHeaders(): Promise<void> {
-    try {
-      const requests = [
-        // Format category headers (Row 1)
-        {
-          repeatCell: {
-            range: {
-              sheetId: 0,
-              startRowIndex: 0,
-              endRowIndex: 1,
-              startColumnIndex: 0,
-              endColumnIndex: 36, // AJ column
-            },
-            cell: {
-              userEnteredFormat: {
-                backgroundColor: { red: 0.2, green: 0.4, blue: 0.8 },
-                textFormat: {
-                  foregroundColor: { red: 1.0, green: 1.0, blue: 1.0 },
-                  bold: true,
-                  fontSize: 11,
-                },
-                horizontalAlignment: "CENTER",
-              },
-            },
-            fields:
-              "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment)",
-          },
-        },
-        // Format column headers (Row 2)
-        {
-          repeatCell: {
-            range: {
-              sheetId: 0,
-              startRowIndex: 1,
-              endRowIndex: 2,
-              startColumnIndex: 0,
-              endColumnIndex: 36, // AJ column
-            },
-            cell: {
-              userEnteredFormat: {
-                backgroundColor: { red: 0.9, green: 0.9, blue: 0.9 },
-                textFormat: {
-                  bold: true,
-                  fontSize: 10,
-                },
-                horizontalAlignment: "CENTER",
-              },
-            },
-            fields:
-              "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment)",
-          },
-        },
-        // Format criteria names (Row 3)
-        {
-          repeatCell: {
-            range: {
-              sheetId: 0,
-              startRowIndex: 2,
-              endRowIndex: 3,
-              startColumnIndex: 0,
-              endColumnIndex: 36, // AJ column
-            },
-            cell: {
-              userEnteredFormat: {
-                backgroundColor: { red: 0.95, green: 0.95, blue: 0.95 },
-                textFormat: {
-                  bold: true,
-                  fontSize: 9,
-                },
-                horizontalAlignment: "LEFT",
-              },
-            },
-            fields:
-              "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment)",
-          },
-        },
-        // Merge cells for OPEN AI EVALUATION (D1:AJ1)
-        {
-          mergeCells: {
-            range: {
-              sheetId: 0,
-              startRowIndex: 0,
-              endRowIndex: 1,
-              startColumnIndex: 3,
-              endColumnIndex: 36, // D1:AJ1
-            },
-            mergeType: "MERGE_ALL",
-          },
-        },
-        // Merge cells for JD Specific Score (D2:S2)
-        {
-          mergeCells: {
-            range: {
-              sheetId: 0,
-              startRowIndex: 1,
-              endRowIndex: 2,
-              startColumnIndex: 3,
-              endColumnIndex: 19, // D2:S2
-            },
-            mergeType: "MERGE_ALL",
-          },
-        },
-        // Merge cells for General Score (T2:AG2)
-        {
-          mergeCells: {
-            range: {
-              sheetId: 0,
-              startRowIndex: 1,
-              endRowIndex: 2,
-              startColumnIndex: 19,
-              endColumnIndex: 33, // T2:AG2
-            },
-            mergeType: "MERGE_ALL",
-          },
-        },
+      // Create headers array
+      const headers = [
+        "Candidate Name", // A
+        "Filename", // B
+        "Folder", // C
+        "Timestamp", // D
       ];
 
-      await this.sheets.spreadsheets.batchUpdate({
+      // Add score/reasoning pairs for each criteria
+      for (const criteria of this.EXPECTED_CRITERIA) {
+        const displayName = this.formatCriteriaDisplayName(criteria);
+        headers.push(`${displayName} - Score`); // Score column
+        headers.push(`${displayName} - Reasoning`); // Reasoning column
+      }
+
+      // Set the header values
+      const endColumn = this.getColumnLetter(headers.length);
+      await this.sheets.spreadsheets.values.update({
         spreadsheetId: this.sheetId,
-        requestBody: { requests },
+        range: `A1:${endColumn}1`,
+        valueInputOption: "RAW",
+        requestBody: {
+          values: [headers],
+        },
       });
 
-      console.log("🎨 Applied formatting to headers");
+      // Format the headers (bold and red)
+      await this.sheets.spreadsheets.batchUpdate({
+        spreadsheetId: this.sheetId,
+        requestBody: {
+          requests: [
+            {
+              repeatCell: {
+                range: {
+                  sheetId: 0, // Assuming first sheet
+                  startRowIndex: 0,
+                  endRowIndex: 1,
+                  startColumnIndex: 0,
+                  endColumnIndex: headers.length,
+                },
+                cell: {
+                  userEnteredFormat: {
+                    textFormat: {
+                      bold: true,
+                      foregroundColor: {
+                        red: 0.8,
+                        green: 0.0,
+                        blue: 0.0,
+                        alpha: 1.0,
+                      },
+                    },
+                    backgroundColor: {
+                      red: 0.95,
+                      green: 0.95,
+                      blue: 0.95,
+                      alpha: 1.0,
+                    },
+                  },
+                },
+                fields: "userEnteredFormat(textFormat,backgroundColor)",
+              },
+            },
+            {
+              autoResizeDimensions: {
+                dimensions: {
+                  sheetId: 0,
+                  dimension: "COLUMNS",
+                  startIndex: 0,
+                  endIndex: headers.length,
+                },
+              },
+            },
+          ],
+        },
+      });
+
+      console.log(
+        `📝 Created formatted headers with ${headers.length} columns`
+      );
     } catch (error) {
-      console.warn("⚠️ Failed to format headers:", error);
+      console.error("❌ Failed to create sheet headers:", error);
+    }
+  }
+
+  private formatCriteriaDisplayName(criteria: string): string {
+    // Handle special cases for very long field names
+    if (
+      criteria.includes(
+        "b2b_product_management_experience_in_a_b2b_software_product_company"
+      )
+    ) {
+      return "B2B Product Management Experience (MSMEs/Kirana/Agriculture)";
+    }
+
+    // Convert snake_case to readable format
+    return criteria
+      .replace(/_/g, " ")
+      .replace(/\b\w/g, (l) => l.toUpperCase())
+      .replace(/Pm/g, "PM")
+      .replace(/Ai/g, "AI")
+      .replace(/B2b/g, "B2B")
+      .replace(/B2c/g, "B2C");
+  }
+
+  async logOpenAIScoringData(file: ResumeFile): Promise<void> {
+    if (!this.initialized) {
+      await this.initialize();
+    }
+
+    try {
+      const scores = file.results.scores;
+      if (!scores) {
+        console.warn(
+          `⚠️ No scores available for ${file.originalFile.originalname}`
+        );
+        return;
+      }
+
+      console.log(
+        `📊 Processing OpenAI scores for ${file.originalFile.originalname}:`
+      );
+      console.log(`   • Raw scores object keys:`, Object.keys(scores));
+      console.log(
+        `   • Sample score structure:`,
+        Object.keys(scores)
+          .slice(0, 3)
+          .map((key) => ({ [key]: scores[key] }))
+      );
+
+      // Map the OpenAI scoring data to row format - pass the raw scores with metadata
+      const scoresWithMetadata = {
+        ...scores,
+        filename: file.originalFile.originalname,
+        folder: file.folderName || "unknown_folder",
+        timestamp: new Date().toISOString(),
+      };
+
+      const rowData = this.mapOpenAIScoresToRowData(file, scoresWithMetadata);
+
+      // Find or create row for this candidate
+      const candidateName =
+        scores.candidate_name || file.originalFile.originalname;
+      const rowIndex = await this.findOrCreateCandidateRow(candidateName);
+
+      // Update the row with OpenAI scoring data
+      const endColumn = this.getColumnLetter(rowData.length);
+      await this.sheets.spreadsheets.values.update({
+        spreadsheetId: this.sheetId,
+        range: `A${rowIndex}:${endColumn}${rowIndex}`,
+        valueInputOption: "RAW",
+        requestBody: {
+          values: [rowData],
+        },
+      });
+
+      console.log(
+        `📝 Logged OpenAI scoring data for: ${candidateName} (${rowData.length} columns)`
+      );
+    } catch (error) {
+      console.error(
+        `❌ Failed to log OpenAI scoring data for ${file.originalFile.originalname}:`,
+        error
+      );
     }
   }
 
@@ -375,9 +283,10 @@ export class GoogleSheetsLogger {
       );
 
       // Update the row
+      const endColumn = this.getColumnLetter(rowData.length);
       await this.sheets.spreadsheets.values.update({
         spreadsheetId: this.sheetId,
-        range: `A${rowIndex}:AJ${rowIndex}`,
+        range: `A${rowIndex}:${endColumn}${rowIndex}`,
         valueInputOption: "RAW",
         requestBody: {
           values: [rowData],
@@ -393,6 +302,111 @@ export class GoogleSheetsLogger {
         error
       );
     }
+  }
+
+  private mapOpenAIScoresToRowData(file: ResumeFile, scores: any): any[] {
+    // Extract the basic info
+    const candidateName =
+      scores.candidate_name || file.originalFile.originalname;
+    const filename = scores.filename || file.originalFile.originalname;
+    const folder = scores.folder || "unknown_folder";
+    const timestamp = scores.timestamp || new Date().toISOString();
+
+    // Create row data starting with basic info
+    const rowData = [
+      candidateName, // A - Candidate Name
+      filename, // B - Filename
+      folder, // C - Folder
+      timestamp, // D - Timestamp
+    ];
+
+    // Map the scores object to the sheet columns
+    // The actual OpenAI scores can be at different levels depending on the structure
+    let scoresObject;
+
+    if (scores.scores) {
+      // Case 1: scores.scores.product_management_experience (saved file format)
+      scoresObject = scores.scores;
+      console.log(`📊 Using nested scores structure for ${candidateName}`);
+    } else {
+      // Case 2: scores.product_management_experience (direct OpenAI response format)
+      scoresObject = { ...scores };
+      // Remove metadata fields to leave only scoring criteria
+      delete scoresObject.candidate_name;
+      delete scoresObject.filename;
+      delete scoresObject.folder;
+      delete scoresObject.timestamp;
+      delete scoresObject.total_score;
+      delete scoresObject.max_possible_score;
+      console.log(`📊 Using direct scores structure for ${candidateName}`);
+    }
+
+    console.log(`   • Available score keys:`, Object.keys(scoresObject));
+    console.log(`   • Expected criteria:`, this.EXPECTED_CRITERIA);
+
+    // Check for any mismatched criteria
+    const availableKeys = Object.keys(scoresObject);
+    const missingCriteria = this.EXPECTED_CRITERIA.filter(
+      (criteria) => !availableKeys.includes(criteria)
+    );
+    const extraKeys = availableKeys.filter(
+      (key) => !this.EXPECTED_CRITERIA.includes(key)
+    );
+
+    if (missingCriteria.length > 0) {
+      console.log(`   ⚠️ Missing criteria in scores:`, missingCriteria);
+    }
+    if (extraKeys.length > 0) {
+      console.log(`   ℹ️ Extra keys in scores:`, extraKeys);
+    }
+
+    // Add each expected criteria's score and reasoning pair
+    for (const criteriaKey of this.EXPECTED_CRITERIA) {
+      let criteriaData = scoresObject[criteriaKey];
+
+      // Handle the inconsistent B2B field name variations
+      if (
+        !criteriaData &&
+        criteriaKey.includes(
+          "b2b_product_management_experience_in_a_b2b_software_product_company"
+        )
+      ) {
+        // Try the alternative field name without the "a_"
+        const alternativeKey =
+          "b2b_product_management_experience_in_b2b_software_product_company_selling_to_msmes_kirana_stores_agriculture_workers_in_india";
+        criteriaData = scoresObject[alternativeKey];
+        if (criteriaData) {
+          console.log(`   🔄 Found alternative field: ${alternativeKey}`);
+        }
+      }
+
+      if (
+        criteriaData &&
+        typeof criteriaData === "object" &&
+        criteriaData.score !== undefined
+      ) {
+        rowData.push(criteriaData.score || "N/A"); // Score
+        rowData.push(criteriaData.reasoning || "No reasoning provided"); // Reasoning
+        console.log(`   ✅ Mapped ${criteriaKey}: ${criteriaData.score}`);
+      } else if (
+        typeof criteriaData === "string" ||
+        typeof criteriaData === "number"
+      ) {
+        // Handle direct score values
+        rowData.push(criteriaData); // Direct score value
+        rowData.push("No reasoning provided"); // Empty reasoning
+        console.log(`   ✅ Mapped ${criteriaKey}: ${criteriaData} (direct)`);
+      } else {
+        rowData.push("N/A"); // Missing score
+        rowData.push("No reasoning provided"); // Empty reasoning
+        console.log(`   ❌ Missing data for ${criteriaKey} - using N/A`);
+      }
+    }
+
+    console.log(`   • Final row data length: ${rowData.length}`);
+    console.log(`   • Sample data:`, rowData.slice(0, 8)); // Show first 8 items
+
+    return rowData;
   }
 
   private mapScoresToRowData(
@@ -464,6 +478,16 @@ export class GoogleSheetsLogger {
     return scoresWithReasons;
   }
 
+  private getColumnLetter(columnNumber: number): string {
+    let result = "";
+    while (columnNumber > 0) {
+      columnNumber--;
+      result = String.fromCharCode(65 + (columnNumber % 26)) + result;
+      columnNumber = Math.floor(columnNumber / 26);
+    }
+    return result;
+  }
+
   private async findOrCreateCandidateRow(
     candidateName: string
   ): Promise<number> {
@@ -476,18 +500,18 @@ export class GoogleSheetsLogger {
 
       const values = response.data.values || [];
 
-      // Look for existing candidate (skip header rows)
-      for (let i = 2; i < values.length; i++) {
+      // Skip header row (row 1) and look for existing candidate starting from row 2
+      for (let i = 1; i < values.length; i++) {
         if (values[i][0] === candidateName) {
-          return i + 1; // 1-indexed
+          return i + 1; // 1-indexed (Excel/Sheets row number)
         }
       }
 
-      // If not found, return next available row
-      return values.length + 1;
+      // If not found, return next available row (after headers)
+      return Math.max(values.length + 1, 2); // Ensure we start from row 2 minimum
     } catch (error) {
       console.warn("⚠️ Error finding candidate row:", error);
-      return 3; // Default to row 3 (after headers)
+      return 2; // Default to row 2 (after headers)
     }
   }
 
@@ -499,6 +523,8 @@ export class GoogleSheetsLogger {
   }
 
   async logScoringResult(file: ResumeFile): Promise<void> {
+    // Log the OpenAI scoring result to Google Sheets
+    await this.logOpenAIScoringData(file);
     console.log(`🤖 Scoring completed for: ${file.originalFile.originalname}`);
   }
 

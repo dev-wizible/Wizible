@@ -8,6 +8,7 @@ import { LlamaExtractor } from "./LlamaExtractor";
 import { OpenAIScorer } from "./OpenAIScorer";
 import { AnthropicValidator } from "./AnthropicValidator";
 import { SupabaseStorage } from "./SupabaseStorage";
+import { GoogleSheetsLogger } from "./GoogleSheetsLogger";
 import {
   config,
   serverConfig,
@@ -28,6 +29,7 @@ export class BulkResumeProcessor extends EventEmitter {
   private scorer: OpenAIScorer;
   private validator: AnthropicValidator;
   private supabase: SupabaseStorage;
+  private googleSheetsLogger: GoogleSheetsLogger;
 
   // Processing queues with conservative concurrency
   private scoringQueue: PQueue;
@@ -40,6 +42,7 @@ export class BulkResumeProcessor extends EventEmitter {
     this.scorer = new OpenAIScorer();
     this.validator = new AnthropicValidator();
     this.supabase = new SupabaseStorage();
+    this.googleSheetsLogger = new GoogleSheetsLogger();
 
     // Conservative queue settings to avoid rate limits
     this.scoringQueue = new PQueue({
@@ -69,6 +72,17 @@ export class BulkResumeProcessor extends EventEmitter {
     } catch (error) {
       console.warn(
         "⚠️ Supabase initialization failed - continuing without cloud storage:",
+        error instanceof Error ? error.message : error
+      );
+    }
+
+    // Initialize Google Sheets Logger (optional - will work without it)
+    try {
+      await this.googleSheetsLogger.initialize();
+      console.log("✅ Google Sheets Logger initialized");
+    } catch (error) {
+      console.warn(
+        "⚠️ Google Sheets Logger initialization failed - continuing without Google Sheets logging:",
         error instanceof Error ? error.message : error
       );
     }
@@ -503,6 +517,13 @@ export class BulkResumeProcessor extends EventEmitter {
 
       // Upload to Supabase
       await this.uploadToSupabase(file, "scores");
+
+      // Log to Google Sheets
+      try {
+        await this.googleSheetsLogger.logScoringResult(file);
+      } catch (error) {
+        console.warn(`⚠️ Failed to log to Google Sheets for ${file.originalFile.originalname}:`, error);
+      }
 
       console.log(
         `🎯 Scored: ${file.originalFile.originalname} (${scores.total_score}/${scores.max_possible_score})`
