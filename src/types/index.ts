@@ -43,6 +43,7 @@ export interface BatchJob {
     | "cancelled";
   files: ResumeFile[];
   jobConfig?: JobConfig;
+  sheetConfig?: GoogleSheetsConfig; // Add sheet configuration
   metrics: BatchMetrics;
   createdAt: Date;
   extractedAt?: Date;
@@ -55,6 +56,12 @@ export interface BatchJob {
 export interface JobConfig {
   jobDescription: string;
   evaluationRubric: string;
+  googleSheets?: GoogleSheetsConfig;
+}
+
+export interface GoogleSheetsConfig {
+  sheetId: string;
+  sheetName: string;
 }
 
 export interface BatchMetrics {

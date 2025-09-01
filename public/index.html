@@ -970,6 +970,88 @@
                 placeholder="Enter evaluation criteria and scoring methodology..."
               ></textarea>
             </div>
+
+            <!-- Google Sheets Configuration -->
+            <div class="form-group">
+              <label class="form-label"
+                >📊 Google Sheets Logging (Optional)</label
+              >
+              <div
+                style="
+                  background: #f8fafc;
+                  padding: 12px;
+                  border-radius: 6px;
+                  margin-bottom: 15px;
+                  border-left: 4px solid #3b82f6;
+                "
+              >
+                <div
+                  style="font-size: 0.9rem; color: #374151; font-weight: 500"
+                >
+                  📋 How to set up your Google Sheet:
+                </div>
+                <ol
+                  style="
+                    margin: 8px 0 0 0;
+                    padding-left: 20px;
+                    font-size: 0.85rem;
+                    color: #6b7280;
+                  "
+                >
+                  <li>Create a new Google Sheet or use an existing one</li>
+                  <li>
+                    Add your own column headers in row 1 (e.g., "Candidate
+                    Name", "Total Score", "Experience Score", etc.)
+                  </li>
+                  <li>
+                    Share the sheet with edit permissions for the service
+                    account
+                  </li>
+                  <li>Copy the Sheet ID from the URL and paste below</li>
+                </ol>
+                <div
+                  style="
+                    font-size: 0.8rem;
+                    color: #059669;
+                    margin-top: 8px;
+                    font-style: italic;
+                  "
+                >
+                  ✨ The system will automatically map scoring data to your
+                  headers!
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Google Sheet ID</label>
+                <input
+                  type="text"
+                  id="googleSheetId"
+                  class="form-input"
+                  placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms"
+                />
+                <div
+                  style="font-size: 0.85rem; color: #6b7280; margin-top: 5px"
+                >
+                  Extract from your Google Sheet URL (between /d/ and /edit)
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Sheet Tab Name</label>
+                <input
+                  type="text"
+                  id="sheetTabName"
+                  class="form-input"
+                  placeholder="Sheet1"
+                  value="Sheet1"
+                />
+                <div
+                  style="font-size: 0.85rem; color: #6b7280; margin-top: 5px"
+                >
+                  The name of the specific tab/worksheet to use
+                </div>
+              </div>
+            </div>
           </div>
           <button id="saveConfig" class="btn" disabled>
             <span>💾</span>
@@ -2127,20 +2209,49 @@
             .getElementById("evaluationRubric")
             .value.trim();
 
+          // Get Google Sheets configuration
+          const googleSheetId = document
+            .getElementById("googleSheetId")
+            ?.value.trim();
+          const sheetTabName =
+            document.getElementById("sheetTabName")?.value.trim() || "Sheet1";
+
+          const configData = {
+            jobDescription,
+            evaluationRubric,
+            googleSheets: googleSheetId
+              ? {
+                  sheetId: googleSheetId,
+                  sheetName: sheetTabName,
+                }
+              : null,
+          };
+
           try {
             this.addLog("💾 Saving job configuration...", "info");
+
+            if (googleSheetId) {
+              this.addLog(
+                `📊 Including Google Sheets logging: ${googleSheetId} (Tab: ${sheetTabName})`,
+                "info"
+              );
+            }
 
             const response = await fetch(`${this.apiBaseUrl}/api/config`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ jobDescription, evaluationRubric }),
+              body: JSON.stringify(configData),
             });
 
             const result = await response.json();
 
             if (result.success) {
               this.configured = true;
-              this.addLog("✅ Configuration saved successfully", "success");
+              let successMessage = "✅ Configuration saved successfully";
+              if (result.data.googleSheets) {
+                successMessage += ` (Google Sheets: ${result.data.googleSheets.sheetId})`;
+              }
+              this.addLog(successMessage, "success");
               await this.detectExtractedFiles();
               this.updateStepStatus();
             } else {

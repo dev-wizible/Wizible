@@ -415,10 +415,10 @@ export class ResumeController {
     }
   };
 
-  // Step 2: Set job configuration (unchanged)
+  // Step 2: Set job configuration (updated with Google Sheets support)
   setJobConfiguration = async (req: Request, res: Response): Promise<void> => {
     try {
-      const { jobDescription, evaluationRubric } = req.body;
+      const { jobDescription, evaluationRubric, googleSheets } = req.body;
 
       console.log(
         `🔧 Setting job configuration for folder '${serverConfig.currentFolder}':`
@@ -429,6 +429,13 @@ export class ResumeController {
       console.log(
         `   • Evaluation rubric length: ${evaluationRubric?.length || 0}`
       );
+      if (googleSheets?.sheetId) {
+        console.log(
+          `   • Google Sheets: ${googleSheets.sheetId} (Tab: ${
+            googleSheets.sheetName || "Sheet1"
+          })`
+        );
+      }
 
       if (!jobDescription?.trim() || jobDescription.trim().length < 20) {
         console.log(
@@ -459,6 +466,13 @@ export class ResumeController {
       const jobConfig: JobConfig = {
         jobDescription: jobDescription.trim(),
         evaluationRubric: evaluationRubric.trim(),
+        googleSheets:
+          googleSheets && googleSheets.sheetId
+            ? {
+                sheetId: googleSheets.sheetId.trim(),
+                sheetName: googleSheets.sheetName?.trim() || "Sheet1",
+              }
+            : undefined,
       };
 
       // Save configuration to the current folder's directory
@@ -494,6 +508,12 @@ export class ResumeController {
         data: {
           jobDescriptionLength: jobConfig.jobDescription.length,
           evaluationRubricLength: jobConfig.evaluationRubric.length,
+          googleSheets: jobConfig.googleSheets
+            ? {
+                sheetId: jobConfig.googleSheets.sheetId,
+                sheetName: jobConfig.googleSheets.sheetName,
+              }
+            : null,
           message: "Job configuration saved successfully",
         },
       });
@@ -546,6 +566,7 @@ export class ResumeController {
           evaluationRubric: jobConfig.evaluationRubric,
           jobDescriptionLength: jobConfig.jobDescription.length,
           evaluationRubricLength: jobConfig.evaluationRubric.length,
+          googleSheets: jobConfig.googleSheets || null,
         },
       });
     } catch (error) {
@@ -827,6 +848,7 @@ export class ResumeController {
       status: "configured" as const,
       files: resumeFiles,
       jobConfig,
+      sheetConfig: jobConfig.googleSheets, // Add sheet configuration
       folderName: folderName, // Add folder context to batch
       metrics: {
         total: resumeFiles.length,
@@ -919,6 +941,7 @@ export class ResumeController {
       status: "configured" as const,
       files: resumeFiles,
       jobConfig,
+      sheetConfig: jobConfig.googleSheets, // Add sheet configuration
       folderName: folderName,
       source: "database" as const,
       metrics: {
