@@ -100,7 +100,7 @@ export class OpenAIScorer {
     evaluationRubric: string
   ): string {
     return `
-You are an expert AI recruiter and resume evaluator. Your task is to analyze a candidate's resume against the provided evaluation rubric and return a structured JSON response.
+You are an expert AI recruiter and resume evaluator. Your task is to analyze a candidate's resume and return a FLAT JSON structure for easy database and spreadsheet integration.
 
 **EVALUATION RUBRIC:**
 ${evaluationRubric}
@@ -108,49 +108,47 @@ ${evaluationRubric}
 **CANDIDATE RESUME DATA:**
 ${JSON.stringify(resumeData, null, 2)}
 
-**DYNAMIC ANALYSIS INSTRUCTIONS:**
+**CRITICAL INSTRUCTIONS FOR FLAT JSON OUTPUT:**
 
-1. **PARSE THE RUBRIC STRUCTURE:**
-   - Identify all evaluation criteria/attributes mentioned in the rubric
-   - Determine the scoring format for each criterion (Yes/No, scales, categories, etc.)
-   - Extract any specific JSON field names if provided in the rubric
-   - Note any example JSON structure shown in the rubric
+1. **FLAT STRUCTURE ONLY:**
+   - Return a single-level JSON object with NO nested objects or arrays
+   - Each field should be a simple key-value pair
+   - Example: "technical_skills": 8, "technical_skills_reasoning": "Strong Python and React experience"
 
-2. **SCORING METHODOLOGY:**
-   - Evaluate each criterion objectively based on evidence from the resume
-   - Use ONLY the scoring options specified in the rubric (don't create new values)
-   - Provide detailed, evidence-based reasoning for each score
-   - Extract candidate name from resumeData.basics.name or resumeData.personal_information.name
+2. **DYNAMIC FIELD GENERATION:**
+   - Parse the evaluation rubric to identify ALL scoring criteria
+   - For each criterion, create TWO fields:
+     - Score field: "[criterion_name]": [As per the rubric]
+     - Reasoning field: "[criterion_name]_reasoning": "[detailed_explanation]"
 
-3. **JSON OUTPUT REQUIREMENTS:**
-   - If the rubric contains a JSON example with field names, use those EXACT field names
-   - If the rubric shows field name patterns, follow them precisely
-   - Each criterion should have both "score" and "reasoning" fields
-   - Include "candidate_name" field with the extracted name
-   - Ensure all field names are consistent with any naming convention shown in the rubric
+3. **FIELD NAMING CONVENTIONS:**
+   - Use snake_case for all field names
+   - Replace spaces with underscores
+   - Keep names descriptive but concise
+   - Examples: "communication_skills", "years_of_experience", "culture_fit"
 
-4. **FIELD NAME CONSISTENCY:**
-   - If the rubric uses snake_case (like "product_management_experience"), use snake_case
-   - If the rubric uses camelCase (like "productManagementExperience"), use camelCase  
-   - Never modify, shorten, or change field names from what's specified in the rubric
-   - Maintain exact spelling and formatting of field names
+**EXAMPLE OUTPUT STRUCTURE:**
+{
+  "candidate_name": "John Doe",
+  "technical_skills": As per the rubric,
+  "technical_skills_reasoning": "Strong experience with Python, React, and AWS",
+  "experience_relevance": As per the rubric,
+  "experience_relevance_reasoning": "5 years in similar role with good progression",
+  "communication": As per the rubric,
+  "communication_reasoning": "Evidence of presentations and documentation",
+  "education": As per the rubric,
+  "education_reasoning": "Relevant degree from accredited university"
+}
 
-5. **QUALITY STANDARDS:**
-   - Base all scores strictly on resume evidence, not assumptions
-   - Provide specific examples from the resume in reasoning
-   - Be consistent in scoring methodology across all criteria
-   - Ensure reasoning clearly justifies the score given
+**OUTPUT REQUIREMENTS:**
+- Return ONLY valid, flat JSON
+- No nested objects or arrays
+- All field names in snake_case
+- Include both score and reasoning for each criterion
+- Ensure all scores are numbers and reasoning are strings
+- Must be parseable and ready for database/spreadsheet insertion
 
-**OUTPUT FORMAT:**
-Return ONLY a valid JSON object following the structure and field names specified in the evaluation rubric. Do not include any additional text, explanations, or markdown formatting.
-
-**CRITICAL REQUIREMENTS:**
-- Must be valid, parseable JSON
-- Must include all criteria mentioned in the rubric
-- Must use exact field names as shown in any rubric examples
-- Must follow the scoring values specified in the rubric
-- Must include detailed reasoning for each score
-`;
+Analyze the rubric, extract all criteria, and return the flat JSON structure.`;
   }
 
   private validateScores(scores: any): void {
