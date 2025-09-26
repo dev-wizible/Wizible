@@ -96,12 +96,12 @@ router.post("/folders/sync", resumeController.forceSyncFolders);
 const validateJobConfig = [
   body("jobDescription")
     .isString()
-    .isLength({ min: 20, max: 10000 })
-    .withMessage("Job description must be 20-10000 characters"),
+    .isLength({ min: 20, max: 15000 })
+    .withMessage("Job description must be 20-15000 characters"),
   body("evaluationRubric")
     .isString()
-    .isLength({ min: 20, max: 10000 })
-    .withMessage("Evaluation rubric must be 20-10000 characters"),
+    .isLength({ min: 20, max: 15000 })
+    .withMessage("Evaluation rubric must be 20-15000 characters"),
   handleValidationErrors,
 ];
 
