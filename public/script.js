@@ -143,7 +143,7 @@ class EnhancedResumeProcessor {
     safeAddEventListener("downloadAllScores", "click", () =>
       this.downloadAllScores()
     );
-    
+
     // New scoring button for multi-model evaluation
     safeAddEventListener(
       "startScoring",
@@ -844,11 +844,14 @@ class EnhancedResumeProcessor {
       .getElementById("googleSheetId")
       ?.value.trim();
     const openaiTabName =
-      document.getElementById("openaiTabName")?.value.trim() || "OpenAI_Results";
+      document.getElementById("openaiTabName")?.value.trim() ||
+      "OpenAI_Results";
     const claudeTabName =
-      document.getElementById("claudeTabName")?.value.trim() || "Claude_Results";
+      document.getElementById("claudeTabName")?.value.trim() ||
+      "Claude_Results";
     const geminiTabName =
-      document.getElementById("geminiTabName")?.value.trim() || "Gemini_Results";
+      document.getElementById("geminiTabName")?.value.trim() ||
+      "Gemini_Results";
 
     const configData = {
       jobDescription,
@@ -868,9 +871,12 @@ class EnhancedResumeProcessor {
 
       if (googleSheetId) {
         this.addLog(
-          `📊 Including Google Sheets logging: ${googleSheetId} (Tab: ${sheetTabName})`,
+          `📊 Including Google Sheets logging: ${googleSheetId}`,
           "info"
         );
+        this.addLog(`   • OpenAI Tab: ${openaiTabName}`, "info");
+        this.addLog(`   • Claude Tab: ${claudeTabName}`, "info");
+        this.addLog(`   • Gemini Tab: ${geminiTabName}`, "info");
       }
 
       const response = await fetch(`${this.apiBaseUrl}/api/config`, {
@@ -978,7 +984,6 @@ class EnhancedResumeProcessor {
         `✅ Ready for AI scoring - Configure models and click 'Start Multi-Model Scoring'`,
         "success"
       );
-
     } catch (error) {
       this.addLog(`Evaluation preparation error: ${error.message}`, "error");
     }
@@ -987,9 +992,13 @@ class EnhancedResumeProcessor {
   async startMultiModelScoring() {
     try {
       // Get model names from inputs
-      const openaiModel = document.getElementById("openaiModel")?.value.trim() || "gpt-4o-mini";
-      const claudeModel = document.getElementById("claudeModel")?.value.trim() || "claude-3-5-sonnet-20240620";
-      const geminiModel = document.getElementById("geminiModel")?.value.trim() || "gemini-pro";
+      const openaiModel =
+        document.getElementById("openaiModel")?.value.trim() || "gpt-4o-mini";
+      const claudeModel =
+        document.getElementById("claudeModel")?.value.trim() ||
+        "claude-3-5-sonnet-20240620";
+      const geminiModel =
+        document.getElementById("geminiModel")?.value.trim() || "gemini-pro";
 
       this.addLog(
         `🚀 Starting parallel AI scoring with 3 models in folder '${this.currentFolder}'...`,
@@ -1006,17 +1015,20 @@ class EnhancedResumeProcessor {
       }
 
       // Start parallel scoring for all 3 models
-      const response = await fetch(`${this.apiBaseUrl}/api/start-multi-model-scoring`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          models: {
-            openai: openaiModel,
-            claude: claudeModel,
-            gemini: geminiModel
-          }
-        }),
-      });
+      const response = await fetch(
+        `${this.apiBaseUrl}/api/start-multi-model-scoring`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            models: {
+              openai: openaiModel,
+              claude: claudeModel,
+              gemini: geminiModel,
+            },
+          }),
+        }
+      );
 
       const result = await response.json();
 
@@ -1028,15 +1040,24 @@ class EnhancedResumeProcessor {
         );
 
         // Show all progress bars
-        document.getElementById("openaiScoringProgress")?.classList.remove("hidden");
-        document.getElementById("claudeScoringProgress")?.classList.remove("hidden");
-        document.getElementById("geminiScoringProgress")?.classList.remove("hidden");
+        document
+          .getElementById("openaiScoringProgress")
+          ?.classList.remove("hidden");
+        document
+          .getElementById("claudeScoringProgress")
+          ?.classList.remove("hidden");
+        document
+          .getElementById("geminiScoringProgress")
+          ?.classList.remove("hidden");
 
         // Start monitoring all 3 models
         this.startMultiModelMonitoring();
         this.updateStepStatus();
       } else {
-        this.addLog(`Multi-model scoring start failed: ${result.error}`, "error");
+        this.addLog(
+          `Multi-model scoring start failed: ${result.error}`,
+          "error"
+        );
       }
     } catch (error) {
       this.addLog(`Multi-model scoring start error: ${error.message}`, "error");
@@ -1215,27 +1236,27 @@ class EnhancedResumeProcessor {
 
       if (result.success) {
         const progress = result.data;
-        
+
         // Update OpenAI progress
         if (progress.openai) {
-          this.updateModelProgressDisplay('openai', progress.openai);
+          this.updateModelProgressDisplay("openai", progress.openai);
         }
-        
+
         // Update Claude progress
         if (progress.claude) {
-          this.updateModelProgressDisplay('claude', progress.claude);
+          this.updateModelProgressDisplay("claude", progress.claude);
         }
-        
+
         // Update Gemini progress
         if (progress.gemini) {
-          this.updateModelProgressDisplay('gemini', progress.gemini);
+          this.updateModelProgressDisplay("gemini", progress.gemini);
         }
 
         // Check if all models are complete
-        const allComplete = 
-          progress.openai?.status === 'completed' &&
-          progress.claude?.status === 'completed' &&
-          progress.gemini?.status === 'completed';
+        const allComplete =
+          progress.openai?.status === "completed" &&
+          progress.claude?.status === "completed" &&
+          progress.gemini?.status === "completed";
 
         if (allComplete) {
           this.handleMultiModelComplete(progress);
@@ -1270,10 +1291,7 @@ class EnhancedResumeProcessor {
     const claudeScored = progress.claude?.scored || 0;
     const geminiScored = progress.gemini?.scored || 0;
 
-    this.addLog(
-      `🎉 All AI model scoring completed!`,
-      "success"
-    );
+    this.addLog(`🎉 All AI model scoring completed!`, "success");
     this.addLog(`🤖 OpenAI: ${openaiScored} files scored`, "success");
     this.addLog(`🧠 Claude: ${claudeScored} files scored`, "success");
     this.addLog(`✨ Gemini: ${geminiScored} files scored`, "success");
@@ -1287,11 +1305,17 @@ class EnhancedResumeProcessor {
     const allScoringComplete = document.getElementById("allScoringComplete");
     if (allScoringComplete) {
       allScoringComplete.classList.remove("hidden");
-      
+
       // Update summary counts
-      document.getElementById("openaiCompleteSummary").textContent = `${openaiScored} files`;
-      document.getElementById("claudeCompleteSummary").textContent = `${claudeScored} files`;
-      document.getElementById("geminiCompleteSummary").textContent = `${geminiScored} files`;
+      document.getElementById(
+        "openaiCompleteSummary"
+      ).textContent = `${openaiScored} files`;
+      document.getElementById(
+        "claudeCompleteSummary"
+      ).textContent = `${claudeScored} files`;
+      document.getElementById(
+        "geminiCompleteSummary"
+      ).textContent = `${geminiScored} files`;
     }
   }
 
@@ -1394,7 +1418,10 @@ class EnhancedResumeProcessor {
         document.body.removeChild(link);
         window.URL.revokeObjectURL(url);
 
-        this.addLog(`✅ All AI model scores downloaded successfully`, "success");
+        this.addLog(
+          `✅ All AI model scores downloaded successfully`,
+          "success"
+        );
       } else {
         const error = await response.text();
         this.addLog(`Download failed: ${error}`, "error");
