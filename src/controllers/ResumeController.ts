@@ -1377,17 +1377,27 @@ export class ResumeController {
     try {
       const { batchId, type } = req.params;
 
-      if (!["extractions", "scores", "validations", "report"].includes(type)) {
+      if (
+        ![
+          "extractions",
+          "scores",
+          "validations",
+          "report",
+          "all-scores",
+        ].includes(type)
+      ) {
         res.status(400).json({
           success: false,
           error:
-            "Invalid download type. Use: extractions, scores, validations, or report",
+            "Invalid download type. Use: extractions, scores, validations, report, or all-scores",
         });
         return;
       }
 
       if (type === "report") {
         await this.downloadReport(batchId, res);
+      } else if (type === "all-scores") {
+        await this.downloadMultiModelScores(batchId, res);
       } else {
         await this.downloadFiles(batchId, type, res);
       }
@@ -1504,6 +1514,83 @@ export class ResumeController {
 
     const reportData = fs.readFileSync(finalReportPath);
     res.send(reportData);
+  }
+
+  private async downloadMultiModelScores(
+    batchId: string,
+    res: Response
+  ): Promise<void> {
+    try {
+      console.log(`📥 Downloading multi-model scores for batch: ${batchId}`);
+
+      const scoresData = this.processor.getMultiModelScores(batchId);
+      if (!scoresData) {
+        res.status(404).json({
+          success: false,
+          error: "Multi-model scores not found for this batch",
+        });
+        return;
+      }
+
+      const folderPrefix = scoresData.folder ? `${scoresData.folder}-` : "";
+      const zipFilename = `${folderPrefix}all-scores-${batchId}.zip`;
+
+      res.setHeader("Content-Type", "application/zip");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="${zipFilename}"`
+      );
+
+      const archive = archiver("zip", { zlib: { level: 9 } });
+      archive.on("error", (err) => {
+        console.error("Archive error:", err);
+        res.status(500).json({
+          success: false,
+          error: "Error creating zip file",
+        });
+      });
+
+      archive.pipe(res);
+
+      // Add OpenAI scores
+      if (scoresData.openai && scoresData.openai.length > 0) {
+        scoresData.openai.forEach((item: any) => {
+          const filename = item.filename.replace(/\.pdf$/i, ".json");
+          archive.append(JSON.stringify(item.scores, null, 2), {
+            name: `openai/${filename}`,
+          });
+        });
+      }
+
+      // Add Claude scores
+      if (scoresData.claude && scoresData.claude.length > 0) {
+        scoresData.claude.forEach((item: any) => {
+          const filename = item.filename.replace(/\.pdf$/i, ".json");
+          archive.append(JSON.stringify(item.scores, null, 2), {
+            name: `claude/${filename}`,
+          });
+        });
+      }
+
+      // Add Gemini scores
+      if (scoresData.gemini && scoresData.gemini.length > 0) {
+        scoresData.gemini.forEach((item: any) => {
+          const filename = item.filename.replace(/\.pdf$/i, ".json");
+          archive.append(JSON.stringify(item.scores, null, 2), {
+            name: `gemini/${filename}`,
+          });
+        });
+      }
+
+      archive.finalize();
+      console.log(`✅ Multi-model scores zip created: ${zipFilename}`);
+    } catch (error) {
+      console.error("Error downloading multi-model scores:", error);
+      res.status(500).json({
+        success: false,
+        error: "Failed to download multi-model scores",
+      });
+    }
   }
 
   // Delete batch

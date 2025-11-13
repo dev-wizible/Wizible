@@ -1428,4 +1428,16 @@ export class BulkResumeProcessor extends EventEmitter {
       },
     };
   }
+
+  getMultiModelScores(batchId: string): any {
+    const job = this.multiModelJobs.get(batchId);
+    if (!job) return null;
+
+    return {
+      openai: job.openai.scores,
+      claude: job.claude.scores,
+      gemini: job.gemini.scores,
+      folder: job.folder,
+    };
+  }
 }

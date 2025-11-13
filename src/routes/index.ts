@@ -112,9 +112,9 @@ const validateBatchId = [
 
 const validateDownloadType = [
   param("type")
-    .isIn(["extractions", "scores", "validations", "report"])
+    .isIn(["extractions", "scores", "validations", "report", "all-scores"])
     .withMessage(
-      "Download type must be: extractions, scores, validations, or report"
+      "Download type must be: extractions, scores, validations, report, or all-scores"
     ),
   handleValidationErrors,
 ];
@@ -139,7 +139,10 @@ router.get("/extracted-files", resumeController.getExtractedFiles);
 router.post("/start-evaluation", resumeController.startEvaluation);
 
 // Step 3.5: Start multi-model scoring (NEW - OpenAI + Claude + Gemini)
-router.post("/start-multi-model-scoring", resumeController.startMultiModelScoring);
+router.post(
+  "/start-multi-model-scoring",
+  resumeController.startMultiModelScoring
+);
 
 // Step 4: Start Anthropic validation (unchanged)
 router.post(
