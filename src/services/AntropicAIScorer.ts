@@ -54,6 +54,14 @@ export class AnthropicAIScorer {
           throw new Error("No response from Anthropic AI");
         }
 
+        // Check if response was truncated
+        if (response.stop_reason === "max_tokens") {
+          console.warn(
+            `⚠️ Claude response truncated due to max_tokens limit for ${resumeFilename}`
+          );
+          throw new Error("Response truncated - increase max_tokens in config");
+        }
+
         // Extract JSON from the response (Claude might wrap it in markdown code blocks)
         let jsonContent = content.text.trim();
         if (jsonContent.startsWith("```json")) {
@@ -63,6 +71,11 @@ export class AnthropicAIScorer {
         } else if (jsonContent.startsWith("```")) {
           jsonContent = jsonContent.replace(/```\n?/g, "");
         }
+
+        // Log response length for debugging
+        console.log(
+          `📏 Claude response length: ${jsonContent.length} chars, stop_reason: ${response.stop_reason}`
+        );
 
         const scores = JSON.parse(jsonContent);
 

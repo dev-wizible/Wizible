@@ -110,17 +110,17 @@ export const apiConfig: APIConfig = {
   openai: {
     apiKey: process.env.OPENAI_API_KEY || "",
     model: process.env.OPENAI_MODEL || "gpt-4.1-2025-04-14",
-    maxTokens: 1500,
+    maxTokens:  3000,
   },
   anthropic: {
     apiKey: process.env.ANTHROPIC_API_KEY || "",
     model: process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514",
-    maxTokens: 1000,
+    maxTokens: 3000,
   },
   gemini: {
     apiKey: process.env.GEMINI_API_KEY || "",
     model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
-    maxTokens: 1500,
+    maxTokens: 3000,
   },
   supabase: {
     url: process.env.SUPABASE_URL || "",
