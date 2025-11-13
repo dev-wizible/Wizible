@@ -1004,9 +1004,9 @@ class EnhancedResumeProcessor {
         document.getElementById("openaiModel")?.value.trim() || "gpt-4o-mini";
         const claudeModel =
           document.getElementById("claudeModel")?.value.trim() ||
-          "claude-3-5-sonnet-20240620";
+          "claude-sonnet-4-20250514";
         const geminiModel =
-          document.getElementById("geminiModel")?.value.trim() || "gemini-1.5-pro";
+          document.getElementById("geminiModel")?.value.trim() || "gemini-2.5-flash";
 
       this.addLog(
         `🚀 Starting parallel AI scoring with 3 models in folder '${this.currentFolder}'...`,
