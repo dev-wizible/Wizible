@@ -45,6 +45,9 @@ export class DynamicGoogleSheetsLogger {
     try {
       await this.validateSheetAccess(sheetId);
 
+      // Ensure the tab exists (create if it doesn't)
+      await this.ensureSheetTabExists(sheetId, sheetName);
+
       const scores = file.results.scores;
       if (!scores) {
         console.warn(
@@ -112,6 +115,54 @@ export class DynamicGoogleSheetsLogger {
       } else {
         throw new Error(`Failed to access Google Sheet: ${error.message}`);
       }
+    }
+  }
+
+  private async ensureSheetTabExists(
+    sheetId: string,
+    tabName: string
+  ): Promise<void> {
+    try {
+      // Get all sheets in the spreadsheet
+      const response = await this.sheets.spreadsheets.get({
+        spreadsheetId: sheetId,
+      });
+
+      const existingSheets = response.data.sheets || [];
+
+      // Check if the tab already exists
+      const tabExists = existingSheets.some(
+        (sheet: any) => sheet.properties?.title === tabName
+      );
+
+      if (tabExists) {
+        console.log(`✅ Tab "${tabName}" already exists`);
+        return;
+      }
+
+      // Create the new tab
+      console.log(`📝 Creating new tab: "${tabName}"...`);
+      await this.sheets.spreadsheets.batchUpdate({
+        spreadsheetId: sheetId,
+        requestBody: {
+          requests: [
+            {
+              addSheet: {
+                properties: {
+                  title: tabName,
+                },
+              },
+            },
+          ],
+        },
+      });
+
+      console.log(`✅ Successfully created tab: "${tabName}"`);
+    } catch (error: any) {
+      console.error(`❌ Error ensuring tab "${tabName}" exists:`, error);
+      throw new Error(
+        `Failed to create or verify tab "${tabName}": ${error.message}`
+      );
     }
   }
 
@@ -355,6 +406,9 @@ export class DynamicGoogleSheetsLogger {
 
     try {
       await this.validateSheetAccess(sheetId);
+
+      // Ensure the tab exists (create if it doesn't)
+      await this.ensureSheetTabExists(sheetId, sheetName);
 
       if (!scores) {
         console.warn(`⚠️ No scores provided`);
