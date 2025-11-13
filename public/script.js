@@ -843,6 +843,8 @@ class EnhancedResumeProcessor {
     const googleSheetId = document
       .getElementById("googleSheetId")
       ?.value.trim();
+    
+    // Always read tab names (even if Sheet ID is not provided yet)
     const openaiTabName =
       document.getElementById("openaiTabName")?.value.trim() ||
       "OpenAI_Results";
@@ -852,6 +854,12 @@ class EnhancedResumeProcessor {
     const geminiTabName =
       document.getElementById("geminiTabName")?.value.trim() ||
       "Gemini_Results";
+
+    // Debug logging
+    console.log("📊 Tab Names Being Saved:");
+    console.log("  OpenAI Tab:", openaiTabName);
+    console.log("  Claude Tab:", claudeTabName);
+    console.log("  Gemini Tab:", geminiTabName);
 
     const configData = {
       jobDescription,
@@ -994,11 +1002,11 @@ class EnhancedResumeProcessor {
       // Get model names from inputs
       const openaiModel =
         document.getElementById("openaiModel")?.value.trim() || "gpt-4o-mini";
-      const claudeModel =
-        document.getElementById("claudeModel")?.value.trim() ||
-        "claude-3-5-sonnet-20240620";
-      const geminiModel =
-        document.getElementById("geminiModel")?.value.trim() || "gemini-pro";
+        const claudeModel =
+          document.getElementById("claudeModel")?.value.trim() ||
+          "claude-3-5-sonnet-20240620";
+        const geminiModel =
+          document.getElementById("geminiModel")?.value.trim() || "gemini-1.5-pro";
 
       this.addLog(
         `🚀 Starting parallel AI scoring with 3 models in folder '${this.currentFolder}'...`,

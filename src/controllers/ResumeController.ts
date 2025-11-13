@@ -429,16 +429,20 @@ export class ResumeController {
       console.log(
         `   • Evaluation rubric length: ${evaluationRubric?.length || 0}`
       );
+      
+      // Debug: Show what was received
+      console.log("📦 Received googleSheets object:", JSON.stringify(googleSheets, null, 2));
+      
       if (googleSheets?.sheetId) {
         console.log(`   • Google Sheets: ${googleSheets.sheetId}`);
         console.log(
-          `   • OpenAI Tab: ${googleSheets.openaiTabName || "OpenAI_Results"}`
+          `   • OpenAI Tab: ${googleSheets.openaiTabName || "NOT PROVIDED - WILL USE DEFAULT"}`
         );
         console.log(
-          `   • Claude Tab: ${googleSheets.claudeTabName || "Claude_Results"}`
+          `   • Claude Tab: ${googleSheets.claudeTabName || "NOT PROVIDED - WILL USE DEFAULT"}`
         );
         console.log(
-          `   • Gemini Tab: ${googleSheets.geminiTabName || "Gemini_Results"}`
+          `   • Gemini Tab: ${googleSheets.geminiTabName || "NOT PROVIDED - WILL USE DEFAULT"}`
         );
       }
 
