@@ -1,6 +1,7 @@
-// src/services/OpenAIScorer.ts
-import OpenAI from "openai";
+// src/services/GeminiAIScorer.ts
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { apiConfig, config } from "../config";
+
 export interface ScoringRequest {
   resumeData: any;
   jobDescription: string;
@@ -8,13 +9,14 @@ export interface ScoringRequest {
   resumeFilename: string;
 }
 
-export class OpenAIScorer {
-  private openai: OpenAI;
+export class GeminiAIScorer {
+  private genAI: GoogleGenerativeAI;
+  private model: any;
 
   constructor() {
-    this.openai = new OpenAI({
-      apiKey: apiConfig.openai.apiKey,
-      timeout: 60000,
+    this.genAI = new GoogleGenerativeAI(apiConfig.gemini.apiKey);
+    this.model = this.genAI.getGenerativeModel({
+      model: apiConfig.gemini.model,
     });
   }
 
@@ -32,29 +34,35 @@ export class OpenAIScorer {
           evaluationRubric
         );
 
-        const response = await this.openai.chat.completions.create({
-          model: apiConfig.openai.model,
-          messages: [
-            {
-              role: "system",
-              content: "You are an expert recruiter and evaluator. ",
-            },
-            {
-              role: "user",
-              content: prompt,
-            },
-          ],
-          temperature: 0.1,
-          max_tokens: apiConfig.openai.maxTokens,
-          response_format: { type: "json_object" },
-        });
+        const result = await this.model.generateContent([
+          {
+            role: "user",
+            parts: [
+              {
+                text: `You are an expert recruiter and evaluator. ${prompt}`,
+              },
+            ],
+          },
+        ]);
 
-        const content = response.choices[0]?.message?.content;
+        const response = await result.response;
+        const content = response.text();
+
         if (!content) {
-          throw new Error("No response from OpenAI");
+          throw new Error("No response from Gemini AI");
         }
 
-        const scores = JSON.parse(content);
+        // Extract JSON from the response (Gemini might wrap it in markdown code blocks)
+        let jsonContent = content.trim();
+        if (jsonContent.startsWith("```json")) {
+          jsonContent = jsonContent
+            .replace(/```json\n?/g, "")
+            .replace(/```\n?/g, "");
+        } else if (jsonContent.startsWith("```")) {
+          jsonContent = jsonContent.replace(/```\n?/g, "");
+        }
+
+        const scores = JSON.parse(jsonContent);
 
         // Fallback: if candidate_name is missing or empty, try to extract from filename
         if (
@@ -72,7 +80,7 @@ export class OpenAIScorer {
             ? `${scores.total_score}/${scores.max_possible_score}`
             : "custom format";
         console.log(
-          `✅ OpenAI scoring completed for ${resumeFilename}: ${scoreInfo}`
+          `✅ Gemini AI scoring completed for ${resumeFilename}: ${scoreInfo}`
         );
         return scores;
       } catch (error) {

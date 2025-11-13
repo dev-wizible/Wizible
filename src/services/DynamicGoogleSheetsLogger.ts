@@ -47,7 +47,9 @@ export class DynamicGoogleSheetsLogger {
 
       const scores = file.results.scores;
       if (!scores) {
-        console.warn(`⚠️ No scores available for ${file.originalFile.originalname}`);
+        console.warn(
+          `⚠️ No scores available for ${file.originalFile.originalname}`
+        );
         return;
       }
 
@@ -55,11 +57,13 @@ export class DynamicGoogleSheetsLogger {
       const flatData = {
         ...scores,
         filename: file.originalFile.originalname,
-        folder: file.folderName || 'main',
-        timestamp: new Date().toISOString()
+        folder: file.folderName || "main",
+        timestamp: new Date().toISOString(),
       };
 
-      console.log(`📊 Processing flat JSON for: ${file.originalFile.originalname}`);
+      console.log(
+        `📊 Processing flat JSON for: ${file.originalFile.originalname}`
+      );
       console.log(`   • Total fields: ${Object.keys(flatData).length}`);
 
       // Check if sheet has headers (row 1)
@@ -73,7 +77,7 @@ export class DynamicGoogleSheetsLogger {
 
       // Get current headers
       const headers = await this.getHeaders(sheetId, sheetName);
-      
+
       // Map flat JSON to row data based on headers
       const rowData = this.mapFlatJSONToHeaders(flatData, headers);
 
@@ -83,9 +87,10 @@ export class DynamicGoogleSheetsLogger {
       // Write data to sheet
       await this.writeRowData(sheetId, sheetName, nextRow, rowData);
 
-      const populatedFields = rowData.filter(value => value !== "").length;
-      console.log(`✅ Added resume data to row ${nextRow}: ${populatedFields}/${headers.length} fields populated`);
-
+      const populatedFields = rowData.filter((value) => value !== "").length;
+      console.log(
+        `✅ Added resume data to row ${nextRow}: ${populatedFields}/${headers.length} fields populated`
+      );
     } catch (error) {
       console.warn(`⚠️ Failed to log to Google Sheets:`, error);
       // Don't throw - Google Sheets logging is optional
@@ -97,16 +102,23 @@ export class DynamicGoogleSheetsLogger {
       await this.sheets.spreadsheets.get({ spreadsheetId: sheetId });
     } catch (error: any) {
       if (error.code === 404) {
-        throw new Error(`Google Sheet not found: ${sheetId}. Check the Sheet ID.`);
+        throw new Error(
+          `Google Sheet not found: ${sheetId}. Check the Sheet ID.`
+        );
       } else if (error.code === 403) {
-        throw new Error(`Access denied to Google Sheet: ${sheetId}. Check sharing permissions.`);
+        throw new Error(
+          `Access denied to Google Sheet: ${sheetId}. Check sharing permissions.`
+        );
       } else {
         throw new Error(`Failed to access Google Sheet: ${error.message}`);
       }
     }
   }
 
-  private async checkForHeaders(sheetId: string, sheetName: string): Promise<boolean> {
+  private async checkForHeaders(
+    sheetId: string,
+    sheetName: string
+  ): Promise<boolean> {
     try {
       const response = await this.sheets.spreadsheets.values.get({
         spreadsheetId: sheetId,
@@ -127,9 +139,14 @@ export class DynamicGoogleSheetsLogger {
     flatData: any
   ): Promise<void> {
     // Convert flat JSON keys to readable headers
-    const headers = Object.keys(flatData).map(key => this.formatHeaderName(key));
+    const headers = Object.keys(flatData).map((key) =>
+      this.formatHeaderName(key)
+    );
 
-    console.log(`📝 Creating ${headers.length} headers:`, headers.slice(0, 8).join(", "));
+    console.log(
+      `📝 Creating ${headers.length} headers:`,
+      headers.slice(0, 8).join(", ")
+    );
 
     // Write headers to row 1
     await this.sheets.spreadsheets.values.update({
@@ -147,25 +164,27 @@ export class DynamicGoogleSheetsLogger {
       await this.sheets.spreadsheets.batchUpdate({
         spreadsheetId: sheetId,
         requestBody: {
-          requests: [{
-            repeatCell: {
-              range: {
-                sheetId: sheetId_num,
-                startRowIndex: 0,
-                endRowIndex: 1,
-                startColumnIndex: 0,
-                endColumnIndex: headers.length,
+          requests: [
+            {
+              repeatCell: {
+                range: {
+                  sheetId: sheetId_num,
+                  startRowIndex: 0,
+                  endRowIndex: 1,
+                  startColumnIndex: 0,
+                  endColumnIndex: headers.length,
+                },
+                cell: {
+                  userEnteredFormat: {
+                    textFormat: { bold: true },
+                    backgroundColor: { red: 0.85, green: 0.85, blue: 0.85 },
+                  },
+                },
+                fields: "userEnteredFormat(textFormat,backgroundColor)",
               },
-              cell: {
-                userEnteredFormat: {
-                  textFormat: { bold: true },
-                  backgroundColor: { red: 0.85, green: 0.85, blue: 0.85 }
-                }
-              },
-              fields: "userEnteredFormat(textFormat,backgroundColor)"
-            }
-          }]
-        }
+            },
+          ],
+        },
       });
       console.log(`✨ Headers formatted with bold text and background`);
     } catch (formatError) {
@@ -176,12 +195,15 @@ export class DynamicGoogleSheetsLogger {
   private formatHeaderName(key: string): string {
     // Convert snake_case to "Title Case"
     return key
-      .split('_')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-      .join(' ');
+      .split("_")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(" ");
   }
 
-  private async getHeaders(sheetId: string, sheetName: string): Promise<string[]> {
+  private async getHeaders(
+    sheetId: string,
+    sheetName: string
+  ): Promise<string[]> {
     try {
       const response = await this.sheets.spreadsheets.values.get({
         spreadsheetId: sheetId,
@@ -201,7 +223,7 @@ export class DynamicGoogleSheetsLogger {
     for (const header of headers) {
       // Find matching key in flat JSON
       const matchingKey = this.findMatchingKey(header, flatData);
-      
+
       if (matchingKey && flatData[matchingKey] !== undefined) {
         rowData.push(this.formatCellValue(flatData[matchingKey]));
       } else {
@@ -214,9 +236,7 @@ export class DynamicGoogleSheetsLogger {
 
   private findMatchingKey(header: string, flatData: any): string | null {
     // Convert header back to potential key format
-    const headerKey = header
-      .toLowerCase()
-      .replace(/\s+/g, '_'); // "Technical Skills" -> "technical_skills"
+    const headerKey = header.toLowerCase().replace(/\s+/g, "_"); // "Technical Skills" -> "technical_skills"
 
     // Try exact match first
     for (const key of Object.keys(flatData)) {
@@ -228,8 +248,10 @@ export class DynamicGoogleSheetsLogger {
     // Try partial matching
     for (const key of Object.keys(flatData)) {
       const keyLower = key.toLowerCase();
-      if (keyLower.includes(headerKey.replace(/_/g, '')) || 
-          headerKey.includes(keyLower.replace(/_/g, ''))) {
+      if (
+        keyLower.includes(headerKey.replace(/_/g, "")) ||
+        headerKey.includes(keyLower.replace(/_/g, ""))
+      ) {
         return key;
       }
     }
@@ -239,14 +261,17 @@ export class DynamicGoogleSheetsLogger {
 
   private formatCellValue(value: any): any {
     if (value === null || value === undefined) return "";
-    if (typeof value === 'boolean') return value ? "Yes" : "No";
-    if (typeof value === 'number') return value;
-    if (typeof value === 'string') return value;
-    if (typeof value === 'object') return JSON.stringify(value);
+    if (typeof value === "boolean") return value ? "Yes" : "No";
+    if (typeof value === "number") return value;
+    if (typeof value === "string") return value;
+    if (typeof value === "object") return JSON.stringify(value);
     return String(value);
   }
 
-  private async getNextAvailableRow(sheetId: string, sheetName: string): Promise<number> {
+  private async getNextAvailableRow(
+    sheetId: string,
+    sheetName: string
+  ): Promise<number> {
     try {
       // Get all values to find the last used row
       const response = await this.sheets.spreadsheets.values.get({
@@ -289,7 +314,10 @@ export class DynamicGoogleSheetsLogger {
     return result;
   }
 
-  private async getSheetId(spreadsheetId: string, sheetName: string): Promise<number> {
+  private async getSheetId(
+    spreadsheetId: string,
+    sheetName: string
+  ): Promise<number> {
     try {
       const spreadsheet = await this.sheets.spreadsheets.get({
         spreadsheetId: spreadsheetId,
@@ -314,6 +342,65 @@ export class DynamicGoogleSheetsLogger {
     } catch (error) {
       console.warn(`⚠️ Google Sheets connection test failed:`, error);
       return false;
+    }
+  }
+
+  // New method for multi-model scoring - accepts scores directly
+  async logScores(
+    sheetId: string,
+    sheetName: string,
+    scores: any
+  ): Promise<void> {
+    if (!this.initialized) await this.initialize();
+
+    try {
+      await this.validateSheetAccess(sheetId);
+
+      if (!scores) {
+        console.warn(`⚠️ No scores provided`);
+        return;
+      }
+
+      // Add timestamp to the scores
+      const flatData = {
+        ...scores,
+        timestamp: new Date().toISOString(),
+      };
+
+      console.log(`📊 Processing flat JSON scores for ${sheetName}`);
+      console.log(`   • Total fields: ${Object.keys(flatData).length}`);
+
+      // Check if sheet has headers (row 1)
+      const hasHeaders = await this.checkForHeaders(sheetId, sheetName);
+
+      if (!hasHeaders) {
+        // First resume - create headers from flat JSON keys
+        console.log(`📋 First resume - creating headers from flat JSON keys`);
+        await this.createHeadersFromFlatJSON(sheetId, sheetName, flatData);
+      }
+
+      // Get current headers
+      const headers = await this.getHeaders(sheetId, sheetName);
+
+      // Map flat JSON to row data based on headers
+      const rowData = this.mapFlatJSONToHeaders(flatData, headers);
+
+      // Find next available row
+      const nextRow = await this.getNextAvailableRow(sheetId, sheetName);
+
+      // Write data to sheet
+      await this.writeRowData(sheetId, sheetName, nextRow, rowData);
+
+      const populatedFields = rowData.filter((value) => value !== "").length;
+      console.log(
+        `✅ Added scores to ${sheetName} row ${nextRow}: ${populatedFields}/${headers.length} fields populated`
+      );
+    } catch (error) {
+      console.warn(
+        `⚠️ Failed to log scores to Google Sheets (${sheetName}):`,
+        error
+      );
+      // Don't throw - Google Sheets logging is optional
     }
   }
 }

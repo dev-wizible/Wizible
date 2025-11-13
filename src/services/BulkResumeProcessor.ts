@@ -7,10 +7,13 @@ import PQueue from "p-queue";
 import { LlamaExtractor } from "./LlamaExtractor";
 import { OpenAIScorer } from "./OpenAIScorer";
 import { AnthropicValidator } from "./AnthropicValidator";
+import { AnthropicAIScorer } from "./AntropicAIScorer";
+import { GeminiAIScorer } from "./GeminiAIScorer";
 import { SupabaseStorage } from "./SupabaseStorage";
 import { DynamicGoogleSheetsLogger } from "./DynamicGoogleSheetsLogger";
 import {
   config,
+  apiConfig,
   serverConfig,
   getCurrentExtractionDir,
   getFolderInfo,
@@ -25,14 +28,19 @@ import {
 
 export class BulkResumeProcessor extends EventEmitter {
   private jobs = new Map<string, BatchJob>();
+  private multiModelJobs = new Map<string, any>(); // Track multi-model scoring jobs
   private extractor: LlamaExtractor;
   private scorer: OpenAIScorer;
+  private claudeScorer: AnthropicAIScorer;
+  private geminiScorer: GeminiAIScorer;
   private validator: AnthropicValidator;
   private supabase: SupabaseStorage;
   private dynamicSheetsLogger: DynamicGoogleSheetsLogger;
 
   // Processing queues with conservative concurrency
   private scoringQueue: PQueue;
+  private claudeScoringQueue: PQueue;
+  private geminiScoringQueue: PQueue;
   private validationQueue: PQueue;
 
   constructor() {
@@ -40,6 +48,8 @@ export class BulkResumeProcessor extends EventEmitter {
 
     this.extractor = new LlamaExtractor();
     this.scorer = new OpenAIScorer();
+    this.claudeScorer = new AnthropicAIScorer();
+    this.geminiScorer = new GeminiAIScorer();
     this.validator = new AnthropicValidator();
     this.supabase = new SupabaseStorage();
     this.dynamicSheetsLogger = new DynamicGoogleSheetsLogger();
@@ -49,6 +59,20 @@ export class BulkResumeProcessor extends EventEmitter {
       concurrency: config.concurrent.scoring,
       timeout: config.timeouts.scoring,
       interval: config.rateLimit.openaiDelay,
+      intervalCap: 1,
+    });
+
+    this.claudeScoringQueue = new PQueue({
+      concurrency: config.concurrent.scoring,
+      timeout: config.timeouts.scoring,
+      interval: config.rateLimit.anthropicDelay,
+      intervalCap: 1,
+    });
+
+    this.geminiScoringQueue = new PQueue({
+      concurrency: config.concurrent.scoring,
+      timeout: config.timeouts.scoring,
+      interval: 500, // Gemini rate limit
       intervalCap: 1,
     });
 
@@ -1044,5 +1068,232 @@ export class BulkResumeProcessor extends EventEmitter {
         error instanceof Error ? error.message : error
       );
     }
+  }
+
+  // =====================================================
+  // NEW: MULTI-MODEL SCORING (OpenAI + Claude + Gemini)
+  // =====================================================
+
+  async startMultiModelScoring(
+    extractedFiles: string[],
+    jobConfig: JobConfig,
+    models: { openaiModel: string; claudeModel: string; geminiModel: string }
+  ): Promise<string> {
+    const batchId = uuidv4();
+    const currentFolder = serverConfig.currentFolder;
+    const extractionsDir = getCurrentExtractionDir();
+
+    console.log(`🚀 Starting multi-model scoring for batch ${batchId}`);
+    console.log(`   • Folder: ${currentFolder}`);
+    console.log(`   • Files: ${extractedFiles.length}`);
+    console.log(`   • Models: OpenAI(${models.openaiModel}), Claude(${models.claudeModel}), Gemini(${models.geminiModel})`);
+
+    const multiModelJob = {
+      batchId,
+      folder: currentFolder,
+      files: extractedFiles,
+      jobConfig,
+      models,
+      openai: {
+        scored: 0,
+        total: extractedFiles.length,
+        status: "processing",
+        scores: [] as any[],
+      },
+      claude: {
+        scored: 0,
+        total: extractedFiles.length,
+        status: "processing",
+        scores: [] as any[],
+      },
+      gemini: {
+        scored: 0,
+        total: extractedFiles.length,
+        status: "processing",
+        scores: [] as any[],
+      },
+    };
+
+    this.multiModelJobs.set(batchId, multiModelJob);
+
+    // Start scoring with all 3 models in parallel
+    this.processMultiModelScoring(batchId, extractedFiles, extractionsDir, jobConfig, models);
+
+    return batchId;
+  }
+
+  private async processMultiModelScoring(
+    batchId: string,
+    extractedFiles: string[],
+    extractionsDir: string,
+    jobConfig: JobConfig,
+    models: { openaiModel: string; claudeModel: string; geminiModel: string }
+  ): Promise<void> {
+    const job = this.multiModelJobs.get(batchId);
+    if (!job) return;
+
+    // Process all files with all 3 models in parallel
+    await Promise.all([
+      this.processWithOpenAI(batchId, extractedFiles, extractionsDir, jobConfig, models.openaiModel),
+      this.processWithClaude(batchId, extractedFiles, extractionsDir, jobConfig, models.claudeModel),
+      this.processWithGemini(batchId, extractedFiles, extractionsDir, jobConfig, models.geminiModel),
+    ]);
+
+    console.log(`🎉 Multi-model scoring complete for batch ${batchId}`);
+  }
+
+  private async processWithOpenAI(
+    batchId: string,
+    extractedFiles: string[],
+    extractionsDir: string,
+    jobConfig: JobConfig,
+    model: string
+  ): Promise<void> {
+    const job = this.multiModelJobs.get(batchId);
+    if (!job) return;
+
+    console.log(`🤖 Starting OpenAI scoring with model: ${model}`);
+
+    for (const filename of extractedFiles) {
+      try {
+        const filePath = path.join(extractionsDir, filename);
+        const resumeData = JSON.parse(fs.readFileSync(filePath, "utf8"));
+
+        const scores = await this.scorer.scoreResume({
+          resumeData,
+          jobDescription: jobConfig.jobDescription,
+          evaluationRubric: jobConfig.evaluationRubric,
+          resumeFilename: filename,
+        });
+
+        job.openai.scores.push({ filename, scores });
+        job.openai.scored++;
+
+        // Log to Google Sheets if configured
+        if (jobConfig.googleSheets?.sheetId && jobConfig.googleSheets?.openaiTabName) {
+          await this.dynamicSheetsLogger.logScores(
+            jobConfig.googleSheets.sheetId,
+            jobConfig.googleSheets.openaiTabName,
+            scores
+          );
+        }
+      } catch (error) {
+        console.error(`❌ OpenAI scoring failed for ${filename}:`, error);
+      }
+    }
+
+    job.openai.status = "completed";
+    console.log(`✅ OpenAI scoring complete: ${job.openai.scored}/${job.openai.total}`);
+  }
+
+  private async processWithClaude(
+    batchId: string,
+    extractedFiles: string[],
+    extractionsDir: string,
+    jobConfig: JobConfig,
+    model: string
+  ): Promise<void> {
+    const job = this.multiModelJobs.get(batchId);
+    if (!job) return;
+
+    console.log(`🧠 Starting Claude scoring with model: ${model}`);
+
+    for (const filename of extractedFiles) {
+      try {
+        const filePath = path.join(extractionsDir, filename);
+        const resumeData = JSON.parse(fs.readFileSync(filePath, "utf8"));
+
+        const scores = await this.claudeScorer.scoreResume({
+          resumeData,
+          jobDescription: jobConfig.jobDescription,
+          evaluationRubric: jobConfig.evaluationRubric,
+          resumeFilename: filename,
+        });
+
+        job.claude.scores.push({ filename, scores });
+        job.claude.scored++;
+
+        // Log to Google Sheets if configured
+        if (jobConfig.googleSheets?.sheetId && jobConfig.googleSheets?.claudeTabName) {
+          await this.dynamicSheetsLogger.logScores(
+            jobConfig.googleSheets.sheetId,
+            jobConfig.googleSheets.claudeTabName,
+            scores
+          );
+        }
+      } catch (error) {
+        console.error(`❌ Claude scoring failed for ${filename}:`, error);
+      }
+    }
+
+    job.claude.status = "completed";
+    console.log(`✅ Claude scoring complete: ${job.claude.scored}/${job.claude.total}`);
+  }
+
+  private async processWithGemini(
+    batchId: string,
+    extractedFiles: string[],
+    extractionsDir: string,
+    jobConfig: JobConfig,
+    model: string
+  ): Promise<void> {
+    const job = this.multiModelJobs.get(batchId);
+    if (!job) return;
+
+    console.log(`✨ Starting Gemini scoring with model: ${model}`);
+
+    for (const filename of extractedFiles) {
+      try {
+        const filePath = path.join(extractionsDir, filename);
+        const resumeData = JSON.parse(fs.readFileSync(filePath, "utf8"));
+
+        const scores = await this.geminiScorer.scoreResume({
+          resumeData,
+          jobDescription: jobConfig.jobDescription,
+          evaluationRubric: jobConfig.evaluationRubric,
+          resumeFilename: filename,
+        });
+
+        job.gemini.scores.push({ filename, scores });
+        job.gemini.scored++;
+
+        // Log to Google Sheets if configured
+        if (jobConfig.googleSheets?.sheetId && jobConfig.googleSheets?.geminiTabName) {
+          await this.dynamicSheetsLogger.logScores(
+            jobConfig.googleSheets.sheetId,
+            jobConfig.googleSheets.geminiTabName,
+            scores
+          );
+        }
+      } catch (error) {
+        console.error(`❌ Gemini scoring failed for ${filename}:`, error);
+      }
+    }
+
+    job.gemini.status = "completed";
+    console.log(`✅ Gemini scoring complete: ${job.gemini.scored}/${job.gemini.total}`);
+  }
+
+  getMultiModelProgress(batchId: string): any {
+    const job = this.multiModelJobs.get(batchId);
+    if (!job) return null;
+
+    return {
+      openai: {
+        scored: job.openai.scored,
+        total: job.openai.total,
+        status: job.openai.status,
+      },
+      claude: {
+        scored: job.claude.scored,
+        total: job.claude.total,
+        status: job.claude.status,
+      },
+      gemini: {
+        scored: job.gemini.scored,
+        total: job.gemini.total,
+        status: job.gemini.status,
+      },
+    };
   }
 }

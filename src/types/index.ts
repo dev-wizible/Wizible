@@ -61,7 +61,10 @@ export interface JobConfig {
 
 export interface GoogleSheetsConfig {
   sheetId: string;
-  sheetName: string;
+  sheetName?: string; // Legacy - keeping for backward compatibility
+  openaiTabName?: string;
+  claudeTabName?: string;
+  geminiTabName?: string;
 }
 
 export interface BatchMetrics {

@@ -1,6 +1,7 @@
-// src/services/OpenAIScorer.ts
-import OpenAI from "openai";
+// src/services/AntropicAIScorer.ts
+import Anthropic from "@anthropic-ai/sdk";
 import { apiConfig, config } from "../config";
+
 export interface ScoringRequest {
   resumeData: any;
   jobDescription: string;
@@ -8,12 +9,12 @@ export interface ScoringRequest {
   resumeFilename: string;
 }
 
-export class OpenAIScorer {
-  private openai: OpenAI;
+export class AnthropicAIScorer {
+  private anthropic: Anthropic;
 
   constructor() {
-    this.openai = new OpenAI({
-      apiKey: apiConfig.openai.apiKey,
+    this.anthropic = new Anthropic({
+      apiKey: apiConfig.anthropic.apiKey,
       timeout: 60000,
     });
   }
@@ -32,29 +33,35 @@ export class OpenAIScorer {
           evaluationRubric
         );
 
-        const response = await this.openai.chat.completions.create({
-          model: apiConfig.openai.model,
+        const response = await this.anthropic.messages.create({
+          model: apiConfig.anthropic.model,
+          max_tokens: apiConfig.anthropic.maxTokens,
+          temperature: 0.1,
+          system: "You are an expert recruiter and evaluator.",
           messages: [
-            {
-              role: "system",
-              content: "You are an expert recruiter and evaluator. ",
-            },
             {
               role: "user",
               content: prompt,
             },
           ],
-          temperature: 0.1,
-          max_tokens: apiConfig.openai.maxTokens,
-          response_format: { type: "json_object" },
         });
 
-        const content = response.choices[0]?.message?.content;
-        if (!content) {
-          throw new Error("No response from OpenAI");
+        const content = response.content[0];
+        if (!content || content.type !== "text") {
+          throw new Error("No response from Anthropic AI");
         }
 
-        const scores = JSON.parse(content);
+        // Extract JSON from the response (Claude might wrap it in markdown code blocks)
+        let jsonContent = content.text.trim();
+        if (jsonContent.startsWith("```json")) {
+          jsonContent = jsonContent
+            .replace(/```json\n?/g, "")
+            .replace(/```\n?/g, "");
+        } else if (jsonContent.startsWith("```")) {
+          jsonContent = jsonContent.replace(/```\n?/g, "");
+        }
+
+        const scores = JSON.parse(jsonContent);
 
         // Fallback: if candidate_name is missing or empty, try to extract from filename
         if (
@@ -72,7 +79,7 @@ export class OpenAIScorer {
             ? `${scores.total_score}/${scores.max_possible_score}`
             : "custom format";
         console.log(
-          `✅ OpenAI scoring completed for ${resumeFilename}: ${scoreInfo}`
+          `✅ Anthropic AI scoring completed for ${resumeFilename}: ${scoreInfo}`
         );
         return scores;
       } catch (error) {

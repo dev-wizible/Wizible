@@ -45,6 +45,11 @@ export interface APIConfig {
     model: string;
     maxTokens: number;
   };
+  gemini: {
+    apiKey: string;
+    model: string;
+    maxTokens: number;
+  };
   supabase: {
     url: string;
     anonKey: string;
@@ -111,6 +116,11 @@ export const apiConfig: APIConfig = {
     apiKey: process.env.ANTHROPIC_API_KEY || "",
     model: process.env.ANTHROPIC_MODEL || "claude-3-5-sonnet-20240620",
     maxTokens: 1000,
+  },
+  gemini: {
+    apiKey: process.env.GEMINI_API_KEY || "",
+    model: process.env.GEMINI_MODEL || "gemini-pro",
+    maxTokens: 1500,
   },
   supabase: {
     url: process.env.SUPABASE_URL || "",
@@ -325,6 +335,7 @@ export function validateConfig(): void {
   if (!apiConfig.llama.apiKey) errors.push("LLAMA_CLOUD_API_KEY required");
   if (!apiConfig.openai.apiKey) errors.push("OPENAI_API_KEY required");
   if (!apiConfig.anthropic.apiKey) errors.push("ANTHROPIC_API_KEY required");
+  if (!apiConfig.gemini.apiKey) errors.push("GEMINI_API_KEY required");
   if (!apiConfig.supabase.url) errors.push("SUPABASE_URL required");
   if (!apiConfig.supabase.anonKey) errors.push("SUPABASE_ANON_KEY required");
 

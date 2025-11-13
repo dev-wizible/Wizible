@@ -431,9 +431,16 @@ export class ResumeController {
       );
       if (googleSheets?.sheetId) {
         console.log(
-          `   • Google Sheets: ${googleSheets.sheetId} (Tab: ${
-            googleSheets.sheetName || "Sheet1"
-          })`
+          `   • Google Sheets: ${googleSheets.sheetId}`
+        );
+        console.log(
+          `   • OpenAI Tab: ${googleSheets.openaiTabName || "OpenAI_Results"}`
+        );
+        console.log(
+          `   • Claude Tab: ${googleSheets.claudeTabName || "Claude_Results"}`
+        );
+        console.log(
+          `   • Gemini Tab: ${googleSheets.geminiTabName || "Gemini_Results"}`
         );
       }
 
@@ -1034,6 +1041,135 @@ export class ResumeController {
       res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
+      });
+    }
+  };
+
+  // New: Start multi-model scoring (OpenAI + Claude + Gemini)
+  startMultiModelScoring = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    try {
+      const { models } = req.body;
+
+      if (!models || !models.openai || !models.claude || !models.gemini) {
+        res.status(400).json({
+          success: false,
+          error: "All model names are required (openai, claude, gemini)",
+        });
+        return;
+      }
+
+      console.log(`🚀 Starting multi-model scoring in folder '${serverConfig.currentFolder}'`);
+      console.log(`   • OpenAI Model: ${models.openai}`);
+      console.log(`   • Claude Model: ${models.claude}`);
+      console.log(`   • Gemini Model: ${models.gemini}`);
+
+      const currentFolder = serverConfig.currentFolder;
+      const extractionsDir = getCurrentExtractionDir();
+
+      // Load folder-specific configuration
+      const currentFolderInfo = getFolderInfo(serverConfig.currentFolder);
+      if (!currentFolderInfo) {
+        res.status(500).json({
+          success: false,
+          error: "Current folder not found",
+        });
+        return;
+      }
+
+      const configPath = path.join(
+        path.dirname(currentFolderInfo.path),
+        `job-config-${serverConfig.currentFolder}.json`
+      );
+
+      if (!fs.existsSync(configPath)) {
+        res.status(400).json({
+          success: false,
+          error: `Job configuration not found for folder '${serverConfig.currentFolder}'. Please configure job first.`,
+        });
+        return;
+      }
+
+      const jobConfig = JSON.parse(fs.readFileSync(configPath, "utf8"));
+
+      // Get extracted files
+      let extractedFiles: string[] = [];
+
+      if (fs.existsSync(extractionsDir)) {
+        extractedFiles = fs
+          .readdirSync(extractionsDir)
+          .filter((file) => file.endsWith(".json"));
+      }
+
+      if (extractedFiles.length === 0) {
+        res.status(400).json({
+          success: false,
+          error: `No extracted files found in folder '${currentFolder}'. Please extract resumes first.`,
+        });
+        return;
+      }
+
+      // Start multi-model scoring with dynamic model names
+      const batchId = await this.processor.startMultiModelScoring(
+        extractedFiles,
+        jobConfig,
+        {
+          openaiModel: models.openai,
+          claudeModel: models.claude,
+          geminiModel: models.gemini,
+        }
+      );
+
+      console.log(`✅ Multi-model scoring started - Batch ID: ${batchId}`);
+
+      res.status(200).json({
+        success: true,
+        data: {
+          batchId,
+          folder: currentFolder,
+          filesCount: extractedFiles.length,
+          status: "scoring",
+          models: {
+            openai: models.openai,
+            claude: models.claude,
+            gemini: models.gemini,
+          },
+        },
+      });
+    } catch (error) {
+      console.error("Error starting multi-model scoring:", error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : "Internal server error",
+      });
+    }
+  };
+
+  // New: Get multi-model progress
+  getMultiModelProgress = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { batchId } = req.params;
+      const progress = this.processor.getMultiModelProgress(batchId);
+
+      if (!progress) {
+        res.status(404).json({
+          success: false,
+          error: "Batch not found",
+        });
+        return;
+      }
+
+      res.status(200).json({
+        success: true,
+        data: progress,
+      });
+    } catch (error) {
+      console.error("Error getting multi-model progress:", error);
+      res.status(500).json({
+        success: false,
+        error: "Internal server error",
       });
     }
   };

@@ -8,848 +8,7 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
       rel="stylesheet"
     />
-    <style>
-      * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-      }
-
-      body {
-        font-family: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        min-height: 100vh;
-        color: #333;
-      }
-
-      .container {
-        max-width: 1400px;
-        margin: 0 auto;
-        padding: 20px;
-      }
-
-      .header {
-        text-align: center;
-        color: white;
-        margin-bottom: 30px;
-      }
-
-      .header h1 {
-        font-size: 3rem;
-        font-weight: 700;
-        margin-bottom: 10px;
-        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-      }
-
-      .header p {
-        font-size: 1.2rem;
-        opacity: 0.9;
-        font-weight: 400;
-      }
-
-      /* ===================================
-        FOLDER MANAGEMENT SECTION
-        =================================== */
-
-      .folder-management {
-        background: white;
-        border-radius: 20px;
-        padding: 30px;
-        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-        margin-bottom: 30px;
-        position: relative;
-        overflow: hidden;
-      }
-
-      .folder-management::before {
-        content: "";
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 5px;
-        background: linear-gradient(90deg, #4ade80, #22c55e);
-      }
-
-      .folder-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-bottom: 25px;
-      }
-
-      .folder-title {
-        font-size: 1.6rem;
-        font-weight: 600;
-        color: #2c3e50;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-      }
-
-      .folder-actions {
-        display: flex;
-        gap: 15px;
-        align-items: center;
-      }
-
-      .btn-create-folder {
-        background: linear-gradient(135deg, #4ade80, #22c55e);
-        color: white;
-        border: none;
-        padding: 10px 20px;
-        border-radius: 8px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        font-size: 0.9rem;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
-
-      .btn-create-folder:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 15px rgba(74, 222, 128, 0.3);
-      }
-
-      .current-folder-display {
-        background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
-        border: 2px solid #0ea5e9;
-        border-radius: 12px;
-        padding: 20px;
-        margin-bottom: 25px;
-      }
-
-      .current-folder-info {
-        display: flex;
-        align-items: center;
-        justify-content: between;
-        gap: 15px;
-        flex-wrap: wrap;
-      }
-
-      .current-folder-name {
-        font-size: 1.2rem;
-        font-weight: 600;
-        color: #0c4a6e;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
-
-      .current-folder-path {
-        font-family: "Courier New", monospace;
-        background: rgba(255, 255, 255, 0.8);
-        padding: 6px 12px;
-        border-radius: 6px;
-        font-size: 0.85rem;
-        color: #374151;
-        border: 1px solid #d1d5db;
-      }
-
-      .folders-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-        gap: 20px;
-        margin-bottom: 25px;
-      }
-
-      .folder-card {
-        background: linear-gradient(135deg, #f8fafc, #f1f5f9);
-        border: 2px solid #e2e8f0;
-        border-radius: 12px;
-        padding: 20px;
-        transition: all 0.3s ease;
-        cursor: pointer;
-        position: relative;
-      }
-
-      .folder-card:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 12px 25px rgba(0, 0, 0, 0.15);
-        border-color: #667eea;
-      }
-
-      .folder-card.active {
-        border-color: #4ade80;
-        background: linear-gradient(135deg, #f0fdf4, #dcfce7);
-        box-shadow: 0 8px 20px rgba(74, 222, 128, 0.2);
-      }
-
-      .folder-card.active::before {
-        content: "✓ Active";
-        position: absolute;
-        top: 10px;
-        right: 10px;
-        background: #22c55e;
-        color: white;
-        padding: 4px 8px;
-        border-radius: 4px;
-        font-size: 0.75rem;
-        font-weight: 600;
-      }
-
-      .folder-card-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-bottom: 15px;
-      }
-
-      .folder-name {
-        font-size: 1.1rem;
-        font-weight: 600;
-        color: #1e293b;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
-
-      .folder-menu {
-        position: relative;
-      }
-
-      .folder-menu-btn {
-        background: none;
-        border: none;
-        color: #64748b;
-        cursor: pointer;
-        font-size: 1.2rem;
-        padding: 5px;
-        border-radius: 4px;
-        transition: all 0.2s ease;
-      }
-
-      .folder-menu-btn:hover {
-        background: rgba(0, 0, 0, 0.1);
-        color: #374151;
-      }
-
-      .folder-stats {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 15px;
-      }
-
-      .folder-stat {
-        text-align: center;
-      }
-
-      .folder-stat-value {
-        font-size: 1.5rem;
-        font-weight: 700;
-        color: #374151;
-        font-family: monospace;
-      }
-
-      .folder-stat-label {
-        font-size: 0.8rem;
-        color: #6b7280;
-        text-transform: uppercase;
-        font-weight: 500;
-        margin-top: 2px;
-      }
-
-      /* ===================================
-        MODAL STYLES
-        =================================== */
-
-      .modal-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0, 0, 0, 0.5);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 1000;
-        opacity: 0;
-        visibility: hidden;
-        transition: all 0.3s ease;
-      }
-
-      .modal-overlay.active {
-        opacity: 1;
-        visibility: visible;
-      }
-
-      .modal {
-        background: white;
-        border-radius: 20px;
-        padding: 30px;
-        max-width: 500px;
-        width: 90%;
-        box-shadow: 0 30px 60px rgba(0, 0, 0, 0.2);
-        transform: scale(0.9);
-        transition: transform 0.3s ease;
-      }
-
-      .modal-overlay.active .modal {
-        transform: scale(1);
-      }
-
-      .modal-header {
-        text-align: center;
-        margin-bottom: 25px;
-      }
-
-      .modal-title {
-        font-size: 1.5rem;
-        font-weight: 600;
-        color: #2c3e50;
-        margin-bottom: 10px;
-      }
-
-      .modal-subtitle {
-        color: #6b7280;
-        font-size: 0.95rem;
-      }
-
-      .modal-body {
-        margin-bottom: 25px;
-      }
-
-      .form-group {
-        margin-bottom: 20px;
-      }
-
-      .form-label {
-        display: block;
-        margin-bottom: 8px;
-        font-weight: 600;
-        color: #333;
-      }
-
-      .form-input {
-        width: 100%;
-        padding: 12px 15px;
-        border: 2px solid #e1e5e9;
-        border-radius: 10px;
-        font-family: inherit;
-        font-size: 1rem;
-        transition: border-color 0.3s ease;
-      }
-
-      .form-input:focus {
-        outline: none;
-        border-color: #667eea;
-        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-      }
-
-      .modal-footer {
-        display: flex;
-        gap: 15px;
-        justify-content: flex-end;
-      }
-
-      .btn-secondary {
-        background: #e5e7eb;
-        color: #374151;
-        border: none;
-        padding: 10px 20px;
-        border-radius: 8px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.3s ease;
-      }
-
-      .btn-secondary:hover {
-        background: #d1d5db;
-        transform: translateY(-1px);
-      }
-
-      .btn-primary {
-        background: linear-gradient(135deg, #667eea, #764ba2);
-        color: white;
-        border: none;
-        padding: 10px 20px;
-        border-radius: 8px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.3s ease;
-      }
-
-      .btn-primary:hover:not(:disabled) {
-        transform: translateY(-2px);
-        box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
-      }
-
-      .btn-primary:disabled {
-        background: #ccc;
-        cursor: not-allowed;
-        transform: none;
-        box-shadow: none;
-      }
-
-      .btn-danger {
-        background: linear-gradient(135deg, #ef4444, #dc2626);
-        color: white;
-        border: none;
-        padding: 10px 20px;
-        border-radius: 8px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.3s ease;
-      }
-
-      .btn-danger:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 10px 20px rgba(239, 68, 68, 0.3);
-      }
-
-      /* ===================================
-        EXISTING WORKFLOW STYLES
-        =================================== */
-
-      .workflow-container {
-        display: grid;
-        gap: 30px;
-        grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-        margin-bottom: 30px;
-      }
-
-      .step-card {
-        background: white;
-        border-radius: 20px;
-        padding: 30px;
-        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-        transition: all 0.3s ease;
-        position: relative;
-        overflow: hidden;
-      }
-
-      .step-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 30px 60px rgba(0, 0, 0, 0.15);
-      }
-
-      .step-card::before {
-        content: "";
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 5px;
-        background: linear-gradient(90deg, #667eea, #764ba2);
-      }
-
-      .step-header {
-        display: flex;
-        align-items: center;
-        margin-bottom: 20px;
-      }
-
-      .step-number {
-        background: linear-gradient(135deg, #667eea, #764ba2);
-        color: white;
-        width: 40px;
-        height: 40px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: 600;
-        margin-right: 15px;
-        font-size: 1.1rem;
-      }
-
-      .step-title {
-        font-size: 1.4rem;
-        font-weight: 600;
-        color: #2c3e50;
-      }
-
-      .step-content {
-        margin-bottom: 25px;
-      }
-
-      .step-description {
-        color: #666;
-        line-height: 1.6;
-        margin-bottom: 20px;
-      }
-
-      /* File upload styles */
-      .file-upload-area {
-        border: 3px dashed #ddd;
-        border-radius: 15px;
-        padding: 40px 20px;
-        text-align: center;
-        transition: all 0.3s ease;
-        cursor: pointer;
-        background: #fafafa;
-        position: relative;
-      }
-
-      .file-upload-area:hover {
-        border-color: #667eea;
-        background: #f0f4ff;
-      }
-
-      .file-upload-area.dragover {
-        border-color: #4caf50;
-        background: #e8f5e9;
-        transform: scale(1.02);
-      }
-
-      .upload-icon {
-        font-size: 3rem;
-        color: #667eea;
-        margin-bottom: 15px;
-      }
-
-      .upload-text {
-        font-size: 1.2rem;
-        font-weight: 600;
-        color: #333;
-        margin-bottom: 8px;
-      }
-
-      .upload-hint {
-        color: #666;
-        font-size: 0.9rem;
-      }
-
-      .file-input {
-        display: none;
-      }
-
-      .file-list {
-        margin-top: 20px;
-        max-height: 200px;
-        overflow-y: auto;
-        background: #f8f9fa;
-        border-radius: 10px;
-        padding: 15px;
-      }
-
-      .file-item {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 8px 0;
-        border-bottom: 1px solid #eee;
-      }
-
-      .file-item:last-child {
-        border-bottom: none;
-      }
-
-      .file-name {
-        font-weight: 500;
-        color: #333;
-      }
-
-      .file-size {
-        color: #666;
-        font-size: 0.85rem;
-      }
-
-      /* Button styles */
-      .btn {
-        background: linear-gradient(135deg, #667eea, #764ba2);
-        color: white;
-        border: none;
-        padding: 12px 24px;
-        border-radius: 10px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        font-size: 1rem;
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        text-decoration: none;
-      }
-
-      .btn:hover:not(:disabled) {
-        transform: translateY(-2px);
-        box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
-      }
-
-      .btn:disabled {
-        background: #ccc;
-        cursor: not-allowed;
-        transform: none;
-        box-shadow: none;
-      }
-
-      .btn-success {
-        background: linear-gradient(135deg, #4caf50, #45a049);
-      }
-
-      .btn-success:hover {
-        box-shadow: 0 10px 20px rgba(76, 175, 80, 0.3);
-      }
-
-      .btn-warning {
-        background: linear-gradient(135deg, #ff9800, #f57c00);
-      }
-
-      .form-textarea {
-        width: 100%;
-        padding: 15px;
-        border: 2px solid #e1e5e9;
-        border-radius: 10px;
-        font-family: inherit;
-        font-size: 0.95rem;
-        resize: vertical;
-        transition: border-color 0.3s ease;
-      }
-
-      .form-textarea:focus {
-        outline: none;
-        border-color: #667eea;
-        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-      }
-
-      .step-actions {
-        display: flex;
-        gap: 10px;
-        flex-wrap: wrap;
-        align-items: center;
-      }
-
-      .step-actions .btn {
-        flex: 1;
-        min-width: 150px;
-      }
-
-      .hidden {
-        display: none !important;
-      }
-
-      /* Progress styles */
-      .progress-bar {
-        width: 100%;
-        height: 12px;
-        background: #e9ecef;
-        border-radius: 6px;
-        overflow: hidden;
-        margin: 10px 0;
-      }
-
-      .progress-fill {
-        height: 100%;
-        background: linear-gradient(90deg, #667eea, #764ba2);
-        transition: width 0.3s ease;
-        border-radius: 6px;
-      }
-
-      .progress-fill.success {
-        background: linear-gradient(90deg, #4caf50, #45a049);
-      }
-
-      /* Detected files styles */
-      .detected-files {
-        background: #f8f9fa;
-        border: 2px solid #007bff;
-        border-radius: 10px;
-        padding: 20px;
-        margin-bottom: 20px;
-      }
-
-      .detected-header h4 {
-        color: #007bff;
-        margin: 0 0 10px 0;
-        font-size: 1.1rem;
-      }
-
-      .detected-count {
-        color: #333;
-        font-weight: 500;
-        margin-bottom: 15px;
-      }
-
-      .detected-list {
-        max-height: 150px;
-        overflow-y: auto;
-        background: white;
-        border-radius: 8px;
-        padding: 10px;
-      }
-
-      .detected-item {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 8px 0;
-        border-bottom: 1px solid #eee;
-      }
-
-      .detected-item:last-child {
-        border-bottom: none;
-      }
-
-      .detected-name {
-        font-weight: 500;
-        color: #333;
-      }
-
-      .detected-size {
-        color: #666;
-        font-size: 0.85rem;
-      }
-
-      /* Ready section styles */
-      .ready-section {
-        background: #e8f5e9;
-        border: 2px solid #4caf50;
-        border-radius: 10px;
-        padding: 20px;
-        margin-bottom: 20px;
-      }
-
-      .ready-status p {
-        margin: 8px 0;
-        font-size: 1rem;
-      }
-
-      /* Evaluation progress styles */
-      .evaluation-progress {
-        background: #fff3cd;
-        border: 2px solid #ffc107;
-        border-radius: 10px;
-        padding: 20px;
-        margin-bottom: 20px;
-      }
-
-      .eval-header h4 {
-        color: #856404;
-        margin: 0 0 10px 0;
-        font-size: 1.1rem;
-      }
-
-      .eval-counter {
-        color: #333;
-        font-weight: 600;
-        margin-bottom: 15px;
-      }
-
-      .eval-stats {
-        display: flex;
-        gap: 20px;
-        margin-top: 15px;
-        flex-wrap: wrap;
-      }
-
-      .stat-item {
-        display: flex;
-        align-items: center;
-        gap: 5px;
-      }
-
-      .stat-label {
-        color: #666;
-        font-size: 0.9rem;
-      }
-
-      .stat-value {
-        font-weight: 600;
-        color: #333;
-        font-family: monospace;
-      }
-
-      /* Evaluation complete styles */
-      .evaluation-complete {
-        background: linear-gradient(135deg, #d4edda, #c3e6cb);
-        border: 2px solid #28a745;
-        border-radius: 10px;
-        padding: 20px;
-        margin-top: 20px;
-        text-align: center;
-      }
-
-      .complete-header h4 {
-        color: #155724;
-        margin: 0 0 10px 0;
-        font-size: 1.1rem;
-      }
-
-      .complete-summary {
-        color: #155724;
-        font-weight: 500;
-        margin-bottom: 15px;
-      }
-
-      /* Status log styles */
-      .status-log {
-        background: #2c3e50;
-        color: #ecf0f1;
-        border-radius: 10px;
-        height: 250px;
-        overflow-y: auto;
-        padding: 20px;
-        font-family: "Courier New", monospace;
-        font-size: 0.85rem;
-        line-height: 1.4;
-        margin: 20px 0;
-      }
-
-      .log-entry {
-        margin-bottom: 8px;
-        padding: 4px 0;
-      }
-
-      .log-entry.success {
-        color: #2ecc71;
-      }
-      .log-entry.error {
-        color: #e74c3c;
-      }
-      .log-entry.info {
-        color: #3498db;
-      }
-      .log-entry.warning {
-        color: #f39c12;
-      }
-
-      /* Responsive design */
-      @media (max-width: 768px) {
-        .container {
-          padding: 15px;
-        }
-
-        .workflow-container {
-          grid-template-columns: 1fr;
-          gap: 20px;
-        }
-
-        .header h1 {
-          font-size: 2.2rem;
-        }
-
-        .folders-grid {
-          grid-template-columns: 1fr;
-        }
-
-        .folder-card-header {
-          flex-direction: column;
-          align-items: flex-start;
-          gap: 10px;
-        }
-
-        .folder-stats {
-          grid-template-columns: repeat(4, 1fr);
-          gap: 10px;
-        }
-
-        .current-folder-info {
-          flex-direction: column;
-          align-items: flex-start;
-        }
-
-        .step-actions {
-          flex-direction: column;
-        }
-        .step-actions .btn {
-          width: 100%;
-        }
-      }
-    </style>
+    <link href="style.css" rel="stylesheet" />
   </head>
   <body>
     <div class="container">
@@ -1037,18 +196,65 @@
                 </div>
               </div>
               <div class="form-group">
-                <label class="form-label">Sheet Tab Name</label>
-                <input
-                  type="text"
-                  id="sheetTabName"
-                  class="form-input"
-                  placeholder="Sheet1"
-                  value="Sheet1"
-                />
-                <div
-                  style="font-size: 0.85rem; color: #6b7280; margin-top: 5px"
+                <label class="form-label"
+                  >📑 Sheet Tab Names (One for each AI Model)</label
                 >
-                  The name of the specific tab/worksheet to use
+                <div style="display: grid; gap: 12px">
+                  <div>
+                    <label
+                      class="form-label"
+                      style="font-size: 0.9rem; color: #059669"
+                      >🤖 OpenAI Tab Name</label
+                    >
+                    <input
+                      type="text"
+                      id="openaiTabName"
+                      class="form-input"
+                      placeholder="OpenAI_Results"
+                      value="OpenAI_Results"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      class="form-label"
+                      style="font-size: 0.9rem; color: #7c3aed"
+                      >🧠 Claude Tab Name</label
+                    >
+                    <input
+                      type="text"
+                      id="claudeTabName"
+                      class="form-input"
+                      placeholder="Claude_Results"
+                      value="Claude_Results"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      class="form-label"
+                      style="font-size: 0.9rem; color: #dc2626"
+                      >✨ Gemini Tab Name</label
+                    >
+                    <input
+                      type="text"
+                      id="geminiTabName"
+                      class="form-input"
+                      placeholder="Gemini_Results"
+                      value="Gemini_Results"
+                    />
+                  </div>
+                </div>
+                <div
+                  style="
+                    font-size: 0.85rem;
+                    color: #6b7280;
+                    margin-top: 8px;
+                    padding: 8px;
+                    background: #f0fdf4;
+                    border-radius: 4px;
+                  "
+                >
+                  💡 Each AI model will write its results to a separate tab in
+                  your Google Sheet
                 </div>
               </div>
             </div>
@@ -1106,41 +312,222 @@
           </button>
         </div>
 
-        <!-- Step 4: OpenAI Evaluation -->
+        <!-- Step 4: AI Model Evaluation -->
         <div class="step-card status-pending" id="step4">
           <div class="step-header">
             <div class="step-number">4</div>
-            <div class="step-title">OpenAI Evaluation</div>
+            <div class="step-title">AI Model Evaluation</div>
           </div>
           <div class="step-content">
             <div class="step-description">
-              AI scoring using OpenAI GPT-4o-mini with comprehensive evaluation.
+              Configure AI models and run parallel scoring with OpenAI, Claude,
+              and Gemini.
             </div>
 
-            <!-- Scoring Progress -->
-            <div id="scoringProgress" class="evaluation-progress hidden">
-              <div class="eval-header">
-                <h4>🤖 OpenAI Scoring in Progress...</h4>
+            <!-- Model Configuration Section -->
+            <div id="modelConfigSection" class="model-config-section">
+              <div
+                style="
+                  background: #f8fafc;
+                  padding: 20px;
+                  border-radius: 12px;
+                  margin-bottom: 20px;
+                "
+              >
+                <h4 style="margin: 0 0 15px 0; color: #1f2937">
+                  🤖 Configure AI Models
+                </h4>
+                <div style="display: grid; gap: 15px">
+                  <div>
+                    <label
+                      class="form-label"
+                      style="font-size: 0.9rem; color: #059669"
+                      >🤖 OpenAI Model</label
+                    >
+                    <input
+                      type="text"
+                      id="openaiModel"
+                      class="form-input"
+                      placeholder="gpt-4o-mini"
+                      value="gpt-4o-mini"
+                    />
+                    <div
+                      style="font-size: 0.8rem; color: #6b7280; margin-top: 4px"
+                    >
+                      e.g., gpt-4o-mini, gpt-4-turbo, gpt-3.5-turbo
+                    </div>
+                  </div>
+                  <div>
+                    <label
+                      class="form-label"
+                      style="font-size: 0.9rem; color: #7c3aed"
+                      >🧠 Claude Model</label
+                    >
+                    <input
+                      type="text"
+                      id="claudeModel"
+                      class="form-input"
+                      placeholder="claude-3-5-sonnet-20240620"
+                      value="claude-3-5-sonnet-20240620"
+                    />
+                    <div
+                      style="font-size: 0.8rem; color: #6b7280; margin-top: 4px"
+                    >
+                      e.g., claude-3-5-sonnet-20240620, claude-3-opus-20240229
+                    </div>
+                  </div>
+                  <div>
+                    <label
+                      class="form-label"
+                      style="font-size: 0.9rem; color: #dc2626"
+                      >✨ Gemini Model</label
+                    >
+                    <input
+                      type="text"
+                      id="geminiModel"
+                      class="form-input"
+                      placeholder="gemini-pro"
+                      value="gemini-pro"
+                    />
+                    <div
+                      style="font-size: 0.8rem; color: #6b7280; margin-top: 4px"
+                    >
+                      e.g., gemini-pro, gemini-1.5-pro, gemini-1.5-flash
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <button
+                id="startScoring"
+                class="btn btn-success"
+                style="width: 100%"
+              >
+                <span>🚀</span>
+                Start Multi-Model Scoring
+              </button>
+            </div>
+
+            <!-- OpenAI Scoring Progress -->
+            <div
+              id="openaiScoringProgress"
+              class="evaluation-progress hidden"
+              style="margin-top: 20px"
+            >
+              <div
+                class="eval-header"
+                style="
+                  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+                "
+              >
+                <h4 style="margin: 0">🤖 OpenAI Scoring</h4>
                 <div class="eval-counter">
-                  <span id="scoredCount">0</span> /
-                  <span id="totalToScore">0</span> files scored
+                  <span id="openaiScoredCount">0</span> /
+                  <span id="openaiTotalToScore">0</span> files
                 </div>
               </div>
               <div class="progress-bar">
                 <div
-                  id="scoringProgressFill"
+                  id="openaiProgressFill"
                   class="progress-fill"
-                  style="width: 0%"
+                  style="
+                    width: 0%;
+                    background: linear-gradient(90deg, #059669, #10b981);
+                  "
                 ></div>
               </div>
             </div>
 
-            <!-- Scoring Complete -->
-            <div id="scoringComplete" class="evaluation-complete hidden">
+            <!-- Claude Scoring Progress -->
+            <div
+              id="claudeScoringProgress"
+              class="evaluation-progress hidden"
+              style="margin-top: 15px"
+            >
+              <div
+                class="eval-header"
+                style="
+                  background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+                "
+              >
+                <h4 style="margin: 0">🧠 Claude Scoring</h4>
+                <div class="eval-counter">
+                  <span id="claudeScoredCount">0</span> /
+                  <span id="claudeTotalToScore">0</span> files
+                </div>
+              </div>
+              <div class="progress-bar">
+                <div
+                  id="claudeProgressFill"
+                  class="progress-fill"
+                  style="
+                    width: 0%;
+                    background: linear-gradient(90deg, #7c3aed, #a78bfa);
+                  "
+                ></div>
+              </div>
+            </div>
+
+            <!-- Gemini Scoring Progress -->
+            <div
+              id="geminiScoringProgress"
+              class="evaluation-progress hidden"
+              style="margin-top: 15px"
+            >
+              <div
+                class="eval-header"
+                style="
+                  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+                "
+              >
+                <h4 style="margin: 0">✨ Gemini Scoring</h4>
+                <div class="eval-counter">
+                  <span id="geminiScoredCount">0</span> /
+                  <span id="geminiTotalToScore">0</span> files
+                </div>
+              </div>
+              <div class="progress-bar">
+                <div
+                  id="geminiProgressFill"
+                  class="progress-fill"
+                  style="
+                    width: 0%;
+                    background: linear-gradient(90deg, #dc2626, #f87171);
+                  "
+                ></div>
+              </div>
+            </div>
+
+            <!-- All Scoring Complete -->
+            <div
+              id="allScoringComplete"
+              class="evaluation-complete hidden"
+              style="margin-top: 20px"
+            >
               <div class="complete-header">
-                <h4>🎯 OpenAI Scoring Complete!</h4>
+                <h4>🎯 All AI Scoring Complete!</h4>
                 <div class="complete-summary">
-                  <span id="scoringSummary">0 files scored successfully</span>
+                  <div
+                    style="
+                      display: grid;
+                      gap: 8px;
+                      text-align: left;
+                      max-width: 400px;
+                      margin: 15px auto;
+                    "
+                  >
+                    <div style="display: flex; justify-content: space-between">
+                      <span>🤖 OpenAI:</span>
+                      <strong id="openaiCompleteSummary">0 files</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between">
+                      <span>🧠 Claude:</span>
+                      <strong id="claudeCompleteSummary">0 files</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between">
+                      <span>✨ Gemini:</span>
+                      <strong id="geminiCompleteSummary">0 files</strong>
+                    </div>
+                  </div>
                 </div>
               </div>
               <div
@@ -1149,60 +536,15 @@
                   gap: 10px;
                   flex-wrap: wrap;
                   justify-content: center;
+                  margin-top: 15px;
                 "
               >
-                <button id="downloadScores" class="btn btn-success">
+                <button id="downloadAllScores" class="btn btn-success">
                   <span>📥</span>
-                  Download AI Scores
-                </button>
-                <button id="startAnthropicValidation" class="btn btn-warning">
-                  <span>🔍</span>
-                  Validate with Anthropic
+                  Download All Results
                 </button>
               </div>
             </div>
-          </div>
-
-          <!-- Anthropic Validation Section -->
-          <div
-            id="anthropicValidationSection"
-            class="evaluation-progress hidden"
-            style="margin-top: 20px"
-          >
-            <div class="eval-header">
-              <h4>🔍 Anthropic Validation in Progress...</h4>
-              <div class="eval-counter">
-                <span id="validatedCount">0</span> /
-                <span id="totalToValidate">0</span> files validated
-              </div>
-            </div>
-            <div class="progress-bar">
-              <div
-                id="validationProgressFill"
-                class="progress-fill"
-                style="width: 0%"
-              ></div>
-            </div>
-          </div>
-
-          <!-- Anthropic Validation Complete -->
-          <div
-            id="anthropicValidationComplete"
-            class="evaluation-complete hidden"
-            style="margin-top: 20px"
-          >
-            <div class="complete-header">
-              <h4>✅ Anthropic Validation Complete!</h4>
-              <div class="complete-summary">
-                <span id="anthropicValidationSummary"
-                  >0 files validated successfully</span
-                >
-              </div>
-            </div>
-            <button id="downloadValidations" class="btn btn-success">
-              <span>📥</span>
-              Download Validations
-            </button>
           </div>
         </div>
       </div>
@@ -1315,1338 +657,6 @@
         </div>
       </div>
     </div>
-
-    <script>
-      class EnhancedResumeProcessor {
-        constructor() {
-          this.apiBaseUrl = this.detectApiBaseUrl();
-          this.currentBatchId = null;
-          this.files = [];
-          this.extracted = false;
-          this.configured = false;
-          this.currentFolder = null;
-          this.folders = [];
-
-          this.initializeEventListeners();
-          this.loadFolders();
-          this.addLog(
-            "System initialized - ready for resume processing",
-            "info"
-          );
-          this.checkServerConnection();
-        }
-
-        detectApiBaseUrl() {
-          const currentOrigin = window.location.origin;
-          if (
-            currentOrigin.includes("127.0.0.1:5500") ||
-            currentOrigin.includes("file://") ||
-            currentOrigin.includes("localhost:5500")
-          ) {
-            return "http://localhost:3000";
-          } else {
-            return currentOrigin;
-          }
-        }
-
-        async checkServerConnection() {
-          try {
-            const response = await fetch(`${this.apiBaseUrl}/api/health`);
-            if (response.ok) {
-              this.addLog("✅ Connected to server successfully", "success");
-              this.addLog(
-                "🤖 AI Services: LlamaIndex + OpenAI + Anthropic",
-                "info"
-              );
-              this.addLog("📁 Dynamic folder management enabled", "info");
-            } else {
-              throw new Error(
-                `Server responded with status ${response.status}`
-              );
-            }
-          } catch (error) {
-            this.addLog(
-              `❌ Cannot connect to server at ${this.apiBaseUrl}`,
-              "error"
-            );
-            this.addLog(
-              "Please ensure the Node.js server is running on port 3000",
-              "warning"
-            );
-          }
-        }
-
-        initializeEventListeners() {
-          // Folder Management
-          const safeAddEventListener = (id, event, handler) => {
-            const element = document.getElementById(id);
-            if (element) {
-              element.addEventListener(event, handler);
-            }
-          };
-
-          // Folder management buttons
-          safeAddEventListener(
-            "createFolderBtn",
-            "click",
-            this.showCreateFolderModal.bind(this)
-          );
-          safeAddEventListener(
-            "refreshFoldersBtn",
-            "click",
-            this.loadFolders.bind(this)
-          );
-
-          // Modal controls
-          safeAddEventListener(
-            "cancelCreateFolder",
-            "click",
-            this.hideCreateFolderModal.bind(this)
-          );
-          safeAddEventListener(
-            "confirmCreateFolder",
-            "click",
-            this.createFolder.bind(this)
-          );
-          safeAddEventListener(
-            "cancelDeleteFolder",
-            "click",
-            this.hideDeleteFolderModal.bind(this)
-          );
-          safeAddEventListener(
-            "confirmDeleteFolder",
-            "click",
-            this.confirmDeleteFolder.bind(this)
-          );
-
-          // Form validation for folder creation
-          safeAddEventListener(
-            "newFolderName",
-            "input",
-            this.validateFolderForm.bind(this)
-          );
-          safeAddEventListener(
-            "newFolderDisplayName",
-            "input",
-            this.validateFolderForm.bind(this)
-          );
-
-          // File upload (existing)
-          const fileUploadArea = document.getElementById("fileUploadArea");
-          const fileInput = document.getElementById("fileInput");
-
-          if (fileUploadArea && fileInput) {
-            fileUploadArea.addEventListener("click", () => fileInput.click());
-            fileUploadArea.addEventListener(
-              "dragover",
-              this.handleDragOver.bind(this)
-            );
-            fileUploadArea.addEventListener(
-              "dragleave",
-              this.handleDragLeave.bind(this)
-            );
-            fileUploadArea.addEventListener("drop", this.handleDrop.bind(this));
-            fileInput.addEventListener(
-              "change",
-              this.handleFileSelect.bind(this)
-            );
-          }
-
-          // Step buttons (existing)
-          safeAddEventListener(
-            "convertToJson",
-            "click",
-            this.convertToJson.bind(this)
-          );
-          safeAddEventListener(
-            "saveConfig",
-            "click",
-            this.saveConfiguration.bind(this)
-          );
-          safeAddEventListener(
-            "startEvaluation",
-            "click",
-            this.startEvaluation.bind(this)
-          );
-
-          // Download buttons (existing)
-          safeAddEventListener("downloadExtractionsAlways", "click", () =>
-            this.downloadResults("extractions")
-          );
-          safeAddEventListener("downloadScores", "click", () =>
-            this.downloadResults("scores")
-          );
-          safeAddEventListener("downloadValidations", "click", () =>
-            this.downloadResults("validations")
-          );
-          safeAddEventListener(
-            "startAnthropicValidation",
-            "click",
-            this.startAnthropicValidation.bind(this)
-          );
-
-          // Configuration validation (with better event handling)
-          const jobDescElement = document.getElementById("jobDescription");
-          const rubricElement = document.getElementById("evaluationRubric");
-
-          if (jobDescElement && rubricElement) {
-            // Use both 'input' and 'keyup' events for better responsiveness
-            jobDescElement.addEventListener("input", () => {
-              console.log("📝 Job description changed");
-              this.validateAndUpdateConfigButton();
-            });
-
-            jobDescElement.addEventListener("keyup", () => {
-              this.validateAndUpdateConfigButton();
-            });
-
-            rubricElement.addEventListener("input", () => {
-              console.log("📝 Evaluation rubric changed");
-              this.validateAndUpdateConfigButton();
-            });
-
-            rubricElement.addEventListener("keyup", () => {
-              this.validateAndUpdateConfigButton();
-            });
-          }
-
-          // Modal close on overlay click
-          document
-            .getElementById("createFolderModal")
-            ?.addEventListener("click", (e) => {
-              if (e.target === e.currentTarget) this.hideCreateFolderModal();
-            });
-          document
-            .getElementById("deleteFolderModal")
-            ?.addEventListener("click", (e) => {
-              if (e.target === e.currentTarget) this.hideDeleteFolderModal();
-            });
-        }
-
-        // =====================================================
-        // FOLDER MANAGEMENT METHODS
-        // =====================================================
-
-        async loadFolders() {
-          try {
-            this.addLog("🔄 Loading folders...", "info");
-
-            const response = await fetch(`${this.apiBaseUrl}/api/folders`);
-            const result = await response.json();
-
-            if (result.success) {
-              this.folders = result.data.folders;
-              this.currentFolder = result.data.currentFolder;
-
-              // Try to restore last selected folder from localStorage
-              await this.restoreLastSelectedFolder();
-
-              this.renderFolders();
-              this.updateCurrentFolderDisplay();
-
-              // Load configuration for current folder (after any folder restoration)
-              await this.loadFolderConfiguration();
-
-              this.addLog(
-                `📁 Loaded ${this.folders.length} folders`,
-                "success"
-              );
-            } else {
-              this.addLog(`Failed to load folders: ${result.error}`, "error");
-            }
-          } catch (error) {
-            this.addLog(`Error loading folders: ${error.message}`, "error");
-          }
-        }
-
-        async restoreLastSelectedFolder() {
-          try {
-            const lastSelectedFolder =
-              localStorage.getItem("lastSelectedFolder");
-
-            if (lastSelectedFolder) {
-              // Check if the folder still exists
-              const folderExists = this.folders.find(
-                (f) => f.name === lastSelectedFolder
-              );
-
-              if (folderExists && lastSelectedFolder !== this.currentFolder) {
-                this.addLog(
-                  `🔄 Restoring last selected folder: ${lastSelectedFolder}`,
-                  "info"
-                );
-
-                // Switch to the last selected folder
-                const response = await fetch(
-                  `${this.apiBaseUrl}/api/current-folder`,
-                  {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ folderName: lastSelectedFolder }),
-                  }
-                );
-
-                const result = await response.json();
-
-                if (result.success) {
-                  this.currentFolder = lastSelectedFolder;
-                  this.addLog(
-                    `✅ Restored folder: ${lastSelectedFolder}`,
-                    "success"
-                  );
-                } else {
-                  this.addLog(
-                    `Failed to restore folder: ${result.error}`,
-                    "warning"
-                  );
-                  // Clear invalid folder from localStorage
-                  localStorage.removeItem("lastSelectedFolder");
-                }
-              }
-            }
-          } catch (error) {
-            this.addLog(`Error restoring folder: ${error.message}`, "warning");
-            // Clear problematic folder from localStorage
-            localStorage.removeItem("lastSelectedFolder");
-          }
-        }
-
-        renderFolders() {
-          const foldersGrid = document.getElementById("foldersGrid");
-          if (!foldersGrid) return;
-
-          foldersGrid.innerHTML = this.folders
-            .map(
-              (folder) => `
-          <div class="folder-card ${
-            folder.name === this.currentFolder ? "active" : ""
-          }" 
-               data-folder="${folder.name}"
-               onclick="processor.selectFolder('${folder.name}')">
-            <div class="folder-card-header">
-              <div class="folder-name">
-                📁 ${folder.displayName}
-              </div>
-              <div class="folder-menu">
-                <button class="folder-menu-btn" 
-                        onclick="event.stopPropagation(); processor.showDeleteFolderModal('${
-                          folder.name
-                        }', '${folder.displayName}')"
-                        title="Delete folder"
-                        ${
-                          folder.name === "main" || folder.name === "test"
-                            ? 'style="display:none"'
-                            : ""
-                        }>
-                  🗑️
-                </button>
-              </div>
-            </div>
-            <div class="folder-stats">
-              <div class="folder-stat">
-                <div class="folder-stat-value">${
-                  folder.stats?.totalFiles || 0
-                }</div>
-                <div class="folder-stat-label">Total</div>
-              </div>
-              <div class="folder-stat">
-                <div class="folder-stat-value">${
-                  folder.stats?.extractedFiles || 0
-                }</div>
-                <div class="folder-stat-label">Extracted</div>
-              </div>
-              <div class="folder-stat">
-                <div class="folder-stat-value">${
-                  folder.stats?.scoredFiles || 0
-                }</div>
-                <div class="folder-stat-label">Scored</div>
-              </div>
-              <div class="folder-stat">
-                <div class="folder-stat-value">${
-                  folder.stats?.validatedFiles || 0
-                }</div>
-                <div class="folder-stat-label">Validated</div>
-              </div>
-            </div>
-          </div>
-        `
-            )
-            .join("");
-        }
-
-        async selectFolder(folderName) {
-          try {
-            this.addLog(`🔄 Switching to folder: ${folderName}`, "info");
-
-            const response = await fetch(
-              `${this.apiBaseUrl}/api/current-folder`,
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ folderName }),
-              }
-            );
-
-            const result = await response.json();
-
-            if (result.success) {
-              this.currentFolder = folderName;
-
-              // Save the selected folder to localStorage
-              localStorage.setItem("lastSelectedFolder", folderName);
-
-              this.addLog(
-                `✅ Switched to folder: ${
-                  result.data.folderInfo?.displayName || folderName
-                }`,
-                "success"
-              );
-
-              // Re-render folders to update active state
-              this.renderFolders();
-              this.updateCurrentFolderDisplay();
-
-              // Reset extraction status and re-detect files
-              this.extracted = false;
-              await this.detectExtractedFiles();
-
-              // Load configuration for this folder
-              await this.loadFolderConfiguration();
-
-              this.updateStepStatus();
-            } else {
-              this.addLog(`Failed to switch folder: ${result.error}`, "error");
-            }
-          } catch (error) {
-            this.addLog(`Error switching folder: ${error.message}`, "error");
-          }
-        }
-
-        async loadFolderConfiguration() {
-          try {
-            this.addLog("🔧 Loading folder configuration...", "info");
-
-            const response = await fetch(`${this.apiBaseUrl}/api/config`);
-            const result = await response.json();
-
-            if (result.success && result.data.configured) {
-              // Fill in the configuration fields
-              const jobDescElement = document.getElementById("jobDescription");
-              const rubricElement = document.getElementById("evaluationRubric");
-
-              if (jobDescElement && rubricElement) {
-                jobDescElement.value = result.data.jobDescription;
-                rubricElement.value = result.data.evaluationRubric;
-
-                // Mark as configured
-                this.configured = true;
-
-                // Trigger validation to enable the save button
-                this.validateAndUpdateConfigButton();
-
-                this.addLog(
-                  `✅ Loaded configuration for folder (${result.data.jobDescriptionLength} + ${result.data.evaluationRubricLength} characters)`,
-                  "success"
-                );
-              }
-            } else {
-              // Clear configuration fields
-              const jobDescElement = document.getElementById("jobDescription");
-              const rubricElement = document.getElementById("evaluationRubric");
-
-              if (jobDescElement && rubricElement) {
-                jobDescElement.value = "";
-                rubricElement.value = "";
-              }
-
-              this.configured = false;
-              this.validateAndUpdateConfigButton();
-
-              this.addLog("📝 No configuration found for this folder", "info");
-            }
-          } catch (error) {
-            this.addLog(
-              `Error loading configuration: ${error.message}`,
-              "error"
-            );
-            this.configured = false;
-          }
-        }
-
-        updateCurrentFolderDisplay() {
-          const currentFolderNameEl =
-            document.getElementById("currentFolderName");
-          const currentFolderPathEl =
-            document.getElementById("currentFolderPath");
-
-          if (currentFolderNameEl && currentFolderPathEl) {
-            const folder = this.folders.find(
-              (f) => f.name === this.currentFolder
-            );
-            if (folder) {
-              currentFolderNameEl.textContent = folder.displayName;
-              currentFolderPathEl.textContent = folder.path;
-            }
-          }
-        }
-
-        showCreateFolderModal() {
-          const modal = document.getElementById("createFolderModal");
-          if (modal) {
-            modal.classList.add("active");
-            // Focus on the name input
-            setTimeout(() => {
-              document.getElementById("newFolderName")?.focus();
-            }, 300);
-          }
-        }
-
-        hideCreateFolderModal() {
-          const modal = document.getElementById("createFolderModal");
-          if (modal) {
-            modal.classList.remove("active");
-            // Clear form
-            document.getElementById("newFolderName").value = "";
-            document.getElementById("newFolderDisplayName").value = "";
-            this.validateFolderForm();
-          }
-        }
-
-        showDeleteFolderModal(folderName, displayName) {
-          // Prevent deletion of default folders
-          if (folderName === "main" || folderName === "test") {
-            this.addLog("Cannot delete default folders (main/test)", "error");
-            return;
-          }
-
-          const modal = document.getElementById("deleteFolderModal");
-          const folderNameEl = document.getElementById("deleteFolderName");
-
-          if (modal && folderNameEl) {
-            folderNameEl.textContent = displayName;
-            modal.dataset.folderName = folderName;
-            modal.classList.add("active");
-          }
-        }
-
-        hideDeleteFolderModal() {
-          const modal = document.getElementById("deleteFolderModal");
-          if (modal) {
-            modal.classList.remove("active");
-            delete modal.dataset.folderName;
-          }
-        }
-
-        validateFolderForm() {
-          const nameInput = document.getElementById("newFolderName");
-          const confirmBtn = document.getElementById("confirmCreateFolder");
-
-          if (nameInput && confirmBtn) {
-            const name = nameInput.value.trim();
-            const isValid =
-              name.length >= 1 &&
-              name.length <= 50 &&
-              /^[a-zA-Z0-9_-]+$/.test(name) &&
-              !this.folders.some((f) => f.name === name.toLowerCase());
-
-            confirmBtn.disabled = !isValid;
-
-            // Show validation feedback
-            nameInput.style.borderColor =
-              name.length > 0 ? (isValid ? "#22c55e" : "#ef4444") : "#e1e5e9";
-          }
-        }
-
-        async createFolder() {
-          const nameInput = document.getElementById("newFolderName");
-          const displayNameInput = document.getElementById(
-            "newFolderDisplayName"
-          );
-
-          const name = nameInput.value.trim();
-          const displayName = displayNameInput.value.trim() || name;
-
-          try {
-            this.addLog(`📁 Creating folder: ${name}`, "info");
-
-            const response = await fetch(`${this.apiBaseUrl}/api/folders`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ name, displayName }),
-            });
-
-            const result = await response.json();
-
-            if (result.success) {
-              this.addLog(
-                `✅ Folder '${result.data.folder.displayName}' created successfully`,
-                "success"
-              );
-              this.hideCreateFolderModal();
-              await this.loadFolders(); // Refresh the folders list
-
-              // Automatically select the newly created folder
-              // Use the actual folder name returned by the backend (which may be sanitized)
-              await this.selectFolder(result.data.folder.name);
-            } else {
-              this.addLog(`Failed to create folder: ${result.error}`, "error");
-            }
-          } catch (error) {
-            this.addLog(`Error creating folder: ${error.message}`, "error");
-          }
-        }
-
-        async confirmDeleteFolder() {
-          const modal = document.getElementById("deleteFolderModal");
-          const folderName = modal.dataset.folderName;
-
-          if (!folderName) return;
-
-          try {
-            this.addLog(`🗑️ Deleting folder: ${folderName}`, "info");
-
-            const response = await fetch(
-              `${this.apiBaseUrl}/api/folders/${folderName}`,
-              {
-                method: "DELETE",
-              }
-            );
-
-            const result = await response.json();
-
-            if (result.success) {
-              this.addLog(
-                `✅ Folder '${folderName}' deleted successfully`,
-                "success"
-              );
-              this.hideDeleteFolderModal();
-              await this.loadFolders(); // Refresh the folders list
-            } else {
-              this.addLog(`Failed to delete folder: ${result.error}`, "error");
-            }
-          } catch (error) {
-            this.addLog(`Error deleting folder: ${error.message}`, "error");
-          }
-        }
-
-        // =====================================================
-        // EXISTING RESUME PROCESSING METHODS (Updated)
-        // =====================================================
-
-        handleDragOver(e) {
-          e.preventDefault();
-          document.getElementById("fileUploadArea").classList.add("dragover");
-        }
-
-        handleDragLeave(e) {
-          e.preventDefault();
-          document
-            .getElementById("fileUploadArea")
-            .classList.remove("dragover");
-        }
-
-        handleDrop(e) {
-          e.preventDefault();
-          document
-            .getElementById("fileUploadArea")
-            .classList.remove("dragover");
-          const files = Array.from(e.dataTransfer.files).filter(
-            (file) =>
-              file.type === "application/pdf" ||
-              file.name.toLowerCase().endsWith(".pdf")
-          );
-          this.updateFiles(files);
-        }
-
-        handleFileSelect(e) {
-          const files = Array.from(e.target.files);
-          this.updateFiles(files);
-        }
-
-        updateFiles(files) {
-          this.files = files;
-          this.displayFileList();
-          this.updateStepStatus();
-
-          if (files.length > 0) {
-            const totalSize = files.reduce((sum, file) => sum + file.size, 0);
-            this.addLog(
-              `Selected ${files.length} PDF files (${this.formatFileSize(
-                totalSize
-              )} total) for folder '${this.currentFolder}'`,
-              "info"
-            );
-
-            if (files.length > 1000) {
-              this.addLog(
-                `Large batch detected (${files.length} files) - processing will be optimized`,
-                "warning"
-              );
-            }
-          }
-        }
-
-        async convertToJson() {
-          if (this.files.length === 0) {
-            this.addLog("No files selected for conversion", "error");
-            return;
-          }
-
-          if (!this.currentFolder) {
-            this.addLog(
-              "No folder selected. Please select a folder first.",
-              "error"
-            );
-            return;
-          }
-
-          try {
-            const formData = new FormData();
-            this.files.forEach((file) => {
-              formData.append("resumes", file);
-            });
-
-            this.addLog(
-              `🔄 Converting ${this.files.length} resumes to JSON in folder '${this.currentFolder}' using LlamaIndex...`,
-              "info"
-            );
-
-            const convertBtn = document.getElementById("convertToJson");
-            convertBtn.disabled = true;
-            convertBtn.innerHTML = "<span>🔄</span> Converting...";
-
-            const response = await fetch(`${this.apiBaseUrl}/api/extract`, {
-              method: "POST",
-              body: formData,
-            });
-
-            const result = await response.json();
-
-            if (result.success) {
-              this.currentBatchId = result.data.batchId;
-              this.extracted = true;
-
-              this.addLog(
-                `✅ Successfully extracted ${result.data.extractedCount} resumes to folder '${result.data.folder}'`,
-                "success"
-              );
-
-              this.updateStepStatus();
-              await this.loadFolders(); // Refresh folder stats
-            } else {
-              this.addLog(`Extraction failed: ${result.error}`, "error");
-            }
-          } catch (error) {
-            this.addLog(`Extraction error: ${error.message}`, "error");
-          } finally {
-            const convertBtn = document.getElementById("convertToJson");
-            convertBtn.disabled = false;
-            convertBtn.innerHTML = "<span>🔄</span> Convert to JSON";
-          }
-        }
-
-        async detectExtractedFiles() {
-          try {
-            const response = await fetch(
-              `${this.apiBaseUrl}/api/extracted-files`
-            );
-            const result = await response.json();
-
-            if (result.success && result.data.files.length > 0) {
-              this.extracted = true;
-              this.showDetectedFiles(result.data.files);
-              this.showReadyToStart(result.data.files.length);
-              this.addLog(
-                `📋 Found ${result.data.files.length} extracted files in folder '${result.data.folder}'`,
-                "info"
-              );
-            } else {
-              this.addLog(
-                `⚠️ No extracted JSON files found in current folder '${this.currentFolder}'. Please complete Step 1 first.`,
-                "warning"
-              );
-            }
-          } catch (error) {
-            this.addLog(`Error detecting files: ${error.message}`, "error");
-          }
-        }
-
-        displayFileList() {
-          const fileList = document.getElementById("fileList");
-
-          if (this.files.length === 0) {
-            fileList.classList.add("hidden");
-            return;
-          }
-
-          fileList.classList.remove("hidden");
-
-          if (this.files.length > 20) {
-            const totalSize = this.files.reduce(
-              (sum, file) => sum + file.size,
-              0
-            );
-            fileList.innerHTML = `
-            <div class="file-item">
-              <span class="file-name">📊 ${
-                this.files.length
-              } PDF files selected</span>
-              <span class="file-size">${this.formatFileSize(totalSize)}</span>
-            </div>
-          `;
-          } else {
-            fileList.innerHTML = this.files
-              .map(
-                (file) => `
-              <div class="file-item">
-                <span class="file-name">${file.name}</span>
-                <span class="file-size">${this.formatFileSize(file.size)}</span>
-              </div>
-            `
-              )
-              .join("");
-          }
-        }
-
-        formatFileSize(bytes) {
-          if (bytes === 0) return "0 Bytes";
-          const k = 1024;
-          const sizes = ["Bytes", "KB", "MB", "GB"];
-          const i = Math.floor(Math.log(bytes) / Math.log(k));
-          return (
-            parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i]
-          );
-        }
-
-        updateStepStatus() {
-          // Update button states and UI based on current progress
-          const convertBtn = document.getElementById("convertToJson");
-          const saveConfigBtn = document.getElementById("saveConfig");
-          const startEvalBtn = document.getElementById("startEvaluation");
-          const downloadExtractionsBtn = document.getElementById(
-            "downloadExtractionsAlways"
-          );
-
-          if (convertBtn) {
-            convertBtn.disabled =
-              this.files.length === 0 || !this.currentFolder;
-          }
-
-          // Use the new validation method for config button
-          if (saveConfigBtn) {
-            this.validateAndUpdateConfigButton();
-          }
-
-          if (downloadExtractionsBtn) {
-            downloadExtractionsBtn.disabled = !this.extracted;
-          }
-
-          const hasExtracted =
-            this.extracted ||
-            (document.getElementById("detectedCount") &&
-              document.getElementById("detectedCount").textContent > "0");
-
-          if (startEvalBtn) {
-            startEvalBtn.disabled = !(hasExtracted && this.configured);
-          }
-        }
-
-        validateConfiguration() {
-          const jobDescElement = document.getElementById("jobDescription");
-          const rubricElement = document.getElementById("evaluationRubric");
-
-          if (!jobDescElement || !rubricElement) {
-            console.log("❌ Configuration elements not found");
-            return false;
-          }
-
-          const jobDesc = jobDescElement.value.trim();
-          const rubric = rubricElement.value.trim();
-
-          const isValid = jobDesc.length >= 10 && rubric.length >= 20;
-
-          console.log(`🔧 Validation check:`, {
-            jobDescLength: jobDesc.length,
-            rubricLength: rubric.length,
-            isValid: isValid,
-          });
-
-          return isValid;
-        }
-
-        // Add this new method to properly update the button state
-        validateAndUpdateConfigButton() {
-          const saveConfigBtn = document.getElementById("saveConfig");
-          if (saveConfigBtn) {
-            const isValid = this.validateConfiguration();
-            saveConfigBtn.disabled = !isValid;
-
-            // Visual feedback
-            if (isValid) {
-              saveConfigBtn.style.opacity = "1";
-              saveConfigBtn.style.cursor = "pointer";
-              console.log("✅ Configuration is valid - button enabled");
-            } else {
-              saveConfigBtn.style.opacity = "0.6";
-              saveConfigBtn.style.cursor = "not-allowed";
-              console.log("❌ Configuration invalid - button disabled");
-            }
-          }
-        }
-
-        async saveConfiguration() {
-          if (!this.validateConfiguration()) {
-            this.addLog(
-              "Job description and rubric must be at least 20 characters each",
-              "error"
-            );
-            return;
-          }
-
-          const jobDescription = document
-            .getElementById("jobDescription")
-            .value.trim();
-          const evaluationRubric = document
-            .getElementById("evaluationRubric")
-            .value.trim();
-
-          // Get Google Sheets configuration
-          const googleSheetId = document
-            .getElementById("googleSheetId")
-            ?.value.trim();
-          const sheetTabName =
-            document.getElementById("sheetTabName")?.value.trim() || "Sheet1";
-
-          const configData = {
-            jobDescription,
-            evaluationRubric,
-            googleSheets: googleSheetId
-              ? {
-                  sheetId: googleSheetId,
-                  sheetName: sheetTabName,
-                }
-              : null,
-          };
-
-          try {
-            this.addLog("💾 Saving job configuration...", "info");
-
-            if (googleSheetId) {
-              this.addLog(
-                `📊 Including Google Sheets logging: ${googleSheetId} (Tab: ${sheetTabName})`,
-                "info"
-              );
-            }
-
-            const response = await fetch(`${this.apiBaseUrl}/api/config`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(configData),
-            });
-
-            const result = await response.json();
-
-            if (result.success) {
-              this.configured = true;
-              let successMessage = "✅ Configuration saved successfully";
-              if (result.data.googleSheets) {
-                successMessage += ` (Google Sheets: ${result.data.googleSheets.sheetId})`;
-              }
-              this.addLog(successMessage, "success");
-              await this.detectExtractedFiles();
-              this.updateStepStatus();
-            } else {
-              this.addLog(`Configuration error: ${result.error}`, "error");
-            }
-          } catch (error) {
-            this.addLog(`Configuration save error: ${error.message}`, "error");
-          }
-        }
-
-        showDetectedFiles(files) {
-          const detectedDiv = document.getElementById("detectedFiles");
-          const filesList = document.getElementById("detectedFilesList");
-
-          if (detectedDiv) detectedDiv.classList.remove("hidden");
-          if (document.getElementById("detectedCount")) {
-            document.getElementById("detectedCount").textContent = files.length;
-          }
-
-          if (filesList) {
-            const displayFiles = files.slice(0, 10);
-            filesList.innerHTML = displayFiles
-              .map(
-                (file) => `
-            <div class="detected-item" style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee;">
-              <span style="font-weight: 500;">${file.name}</span>
-              <span style="color: #666; font-size: 0.85rem;">${this.formatFileSize(
-                file.size
-              )}</span>
-            </div>
-          `
-              )
-              .join("");
-
-            if (files.length > 10) {
-              filesList.innerHTML += `
-              <div class="detected-item" style="display: flex; justify-content: space-between; padding: 8px 0;">
-                <span>... and ${files.length - 10} more files</span>
-                <span style="color: #666; font-size: 0.85rem;">Ready for evaluation</span>
-              </div>
-            `;
-            }
-          }
-        }
-
-        showReadyToStart(fileCount) {
-          const readyDiv = document.getElementById("readyToStart");
-          if (readyDiv) readyDiv.classList.remove("hidden");
-
-          if (document.getElementById("readyExtracted")) {
-            document.getElementById("readyExtracted").textContent = fileCount;
-          }
-          if (document.getElementById("readyConfig")) {
-            document.getElementById("readyConfig").textContent = this.configured
-              ? "Configured ✅"
-              : "Not set";
-          }
-          if (document.getElementById("readyToEvaluate")) {
-            document.getElementById("readyToEvaluate").textContent = fileCount;
-          }
-
-          document.getElementById("startEvaluation").disabled = !(
-            fileCount > 0 && this.configured
-          );
-        }
-
-        async startEvaluation() {
-          try {
-            this.addLog(
-              `🚀 Starting OpenAI scoring pipeline in folder '${this.currentFolder}'...`,
-              "info"
-            );
-
-            const response = await fetch(
-              `${this.apiBaseUrl}/api/start-evaluation`,
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-              }
-            );
-
-            const result = await response.json();
-
-            if (result.success) {
-              this.currentBatchId = result.data.batchId;
-              this.addLog(
-                `✅ OpenAI scoring started - Batch ID: ${this.currentBatchId} in folder '${result.data.folder}'`,
-                "success"
-              );
-
-              this.startScoringMonitoring();
-              this.updateStepStatus();
-            } else {
-              this.addLog(
-                `OpenAI scoring start failed: ${result.error}`,
-                "error"
-              );
-            }
-          } catch (error) {
-            this.addLog(
-              `OpenAI scoring start error: ${error.message}`,
-              "error"
-            );
-          }
-        }
-
-        async startAnthropicValidation() {
-          try {
-            if (!this.currentBatchId) {
-              this.addLog(
-                "No batch ID available. Please complete OpenAI scoring first.",
-                "error"
-              );
-              return;
-            }
-
-            this.addLog("🔍 Starting Anthropic validation...", "info");
-
-            const response = await fetch(
-              `${this.apiBaseUrl}/api/start-anthropic-validation`,
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ batchId: this.currentBatchId }),
-              }
-            );
-
-            const result = await response.json();
-
-            if (result.success) {
-              this.addLog(
-                `✅ Anthropic validation started for batch ${this.currentBatchId}`,
-                "success"
-              );
-
-              document.getElementById(
-                "startAnthropicValidation"
-              ).style.display = "none";
-              document
-                .getElementById("anthropicValidationSection")
-                .classList.remove("hidden");
-
-              this.startValidationMonitoring();
-            } else {
-              this.addLog(
-                `Anthropic validation start failed: ${result.error}`,
-                "error"
-              );
-            }
-          } catch (error) {
-            this.addLog(
-              `Anthropic validation start error: ${error.message}`,
-              "error"
-            );
-          }
-        }
-
-        startScoringMonitoring() {
-          const scoringProgress = document.getElementById("scoringProgress");
-          if (scoringProgress) scoringProgress.classList.remove("hidden");
-
-          this.progressInterval = setInterval(async () => {
-            await this.updateScoringProgress();
-          }, 3000);
-        }
-
-        startValidationMonitoring() {
-          this.validationInterval = setInterval(async () => {
-            await this.updateValidationProgress();
-          }, 3000);
-        }
-
-        async updateScoringProgress() {
-          try {
-            if (!this.currentBatchId) return;
-
-            const response = await fetch(
-              `${this.apiBaseUrl}/api/batch/${this.currentBatchId}/progress`
-            );
-            const result = await response.json();
-
-            if (result.success) {
-              const metrics = result.data.metrics;
-              this.updateScoringProgressDisplay(metrics);
-
-              if (result.data.status === "scored") {
-                this.handleScoringComplete(metrics);
-              }
-            }
-          } catch (error) {
-            console.warn("Error updating scoring progress:", error);
-          }
-        }
-
-        async updateValidationProgress() {
-          try {
-            if (!this.currentBatchId) return;
-
-            const response = await fetch(
-              `${this.apiBaseUrl}/api/batch/${this.currentBatchId}/progress`
-            );
-            const result = await response.json();
-
-            if (result.success) {
-              const metrics = result.data.metrics;
-              this.updateValidationProgressDisplay(metrics);
-
-              if (result.data.status === "completed") {
-                this.handleValidationComplete(metrics);
-              }
-            }
-          } catch (error) {
-            console.warn("Error updating validation progress:", error);
-          }
-        }
-
-        updateScoringProgressDisplay(metrics) {
-          const scored = metrics.scored || 0;
-          const total = metrics.total || 0;
-
-          const elements = {
-            scoredCount: document.getElementById("scoredCount"),
-            totalToScore: document.getElementById("totalToScore"),
-            scoringProgressFill: document.getElementById("scoringProgressFill"),
-          };
-
-          if (elements.scoredCount) elements.scoredCount.textContent = scored;
-          if (elements.totalToScore) elements.totalToScore.textContent = total;
-
-          const percentage = total > 0 ? (scored / total) * 100 : 0;
-          if (elements.scoringProgressFill) {
-            elements.scoringProgressFill.style.width = percentage + "%";
-          }
-        }
-
-        updateValidationProgressDisplay(metrics) {
-          const validated = metrics.completed || 0;
-          const total = metrics.total || 0;
-
-          const elements = {
-            validatedCount: document.getElementById("validatedCount"),
-            totalToValidate: document.getElementById("totalToValidate"),
-            validationProgressFill: document.getElementById(
-              "validationProgressFill"
-            ),
-          };
-
-          if (elements.validatedCount)
-            elements.validatedCount.textContent = validated;
-          if (elements.totalToValidate)
-            elements.totalToValidate.textContent = total;
-
-          const percentage = total > 0 ? (validated / total) * 100 : 0;
-          if (elements.validationProgressFill) {
-            elements.validationProgressFill.style.width = percentage + "%";
-          }
-        }
-
-        handleScoringComplete(metrics) {
-          this.stopScoringMonitoring();
-
-          const scored = metrics.scored || 0;
-          const total = metrics.total || 0;
-          const successRate = ((scored / total) * 100).toFixed(1);
-
-          this.addLog(
-            `🎉 OpenAI scoring completed! ${scored}/${total} files scored (${successRate}%)`,
-            "success"
-          );
-
-          const scoringProgress = document.getElementById("scoringProgress");
-          const scoringComplete = document.getElementById("scoringComplete");
-          const scoringSummary = document.getElementById("scoringSummary");
-
-          if (scoringProgress) scoringProgress.classList.add("hidden");
-          if (scoringComplete) scoringComplete.classList.remove("hidden");
-          if (scoringSummary)
-            scoringSummary.textContent = `${scored} files scored successfully`;
-
-          // Refresh folder stats
-          this.loadFolders();
-        }
-
-        handleValidationComplete(metrics) {
-          this.stopValidationMonitoring();
-
-          const validated = metrics.completed || 0;
-          const total = metrics.total || 0;
-          const successRate = ((validated / total) * 100).toFixed(1);
-
-          this.addLog(
-            `🎉 Anthropic validation completed! ${validated}/${total} files validated (${successRate}%)`,
-            "success"
-          );
-
-          const validationSection = document.getElementById(
-            "anthropicValidationSection"
-          );
-          const validationComplete = document.getElementById(
-            "anthropicValidationComplete"
-          );
-          const validationSummary = document.getElementById(
-            "anthropicValidationSummary"
-          );
-
-          if (validationSection) validationSection.classList.add("hidden");
-          if (validationComplete) validationComplete.classList.remove("hidden");
-          if (validationSummary)
-            validationSummary.textContent = `${validated} files validated successfully`;
-
-          // Refresh folder stats
-          this.loadFolders();
-        }
-
-        stopScoringMonitoring() {
-          if (this.progressInterval) {
-            clearInterval(this.progressInterval);
-            this.progressInterval = null;
-          }
-        }
-
-        stopValidationMonitoring() {
-          if (this.validationInterval) {
-            clearInterval(this.validationInterval);
-            this.validationInterval = null;
-          }
-        }
-
-        async downloadResults(type) {
-          if (!this.currentBatchId) {
-            this.addLog("No batch available for download", "error");
-            return;
-          }
-
-          try {
-            this.addLog(
-              `📥 Downloading ${type} from folder '${this.currentFolder}'...`,
-              "info"
-            );
-
-            const response = await fetch(
-              `${this.apiBaseUrl}/api/batch/${this.currentBatchId}/download/${type}`
-            );
-
-            if (response.ok) {
-              const blob = await response.blob();
-              const url = window.URL.createObjectURL(blob);
-              const link = document.createElement("a");
-              link.href = url;
-
-              const extension = type === "report" ? "json" : "zip";
-              link.download = `${this.currentFolder}-${type}-${this.currentBatchId}.${extension}`;
-
-              document.body.appendChild(link);
-              link.click();
-              document.body.removeChild(link);
-              window.URL.revokeObjectURL(url);
-
-              this.addLog(`✅ ${type} downloaded successfully`, "success");
-            } else {
-              const error = await response.json();
-              this.addLog(`Download failed: ${error.error}`, "error");
-            }
-          } catch (error) {
-            this.addLog(`Download error: ${error.message}`, "error");
-          }
-        }
-
-        addLog(message, type = "info") {
-          const timestamp = new Date().toLocaleTimeString();
-          const logEntry = document.createElement("div");
-          logEntry.className = `log-entry ${type}`;
-          logEntry.textContent = `[${timestamp}] ${message}`;
-
-          const statusLog = document.getElementById("statusLog");
-          if (statusLog) {
-            statusLog.appendChild(logEntry);
-            statusLog.scrollTop = statusLog.scrollHeight;
-
-            // Keep only last 100 entries
-            const entries = statusLog.querySelectorAll(".log-entry");
-            if (entries.length > 100) {
-              entries[0].remove();
-            }
-          }
-
-          console.log(`[${type.toUpperCase()}] ${message}`);
-        }
-      }
-
-      // Initialize the application when DOM is ready
-      document.addEventListener("DOMContentLoaded", function () {
-        window.processor = new EnhancedResumeProcessor();
-      });
-    </script>
+    <script src="script.js"></script>
   </body>
 </html>

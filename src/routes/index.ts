@@ -138,6 +138,9 @@ router.get("/extracted-files", resumeController.getExtractedFiles);
 // Step 3: Start evaluation (now folder-aware)
 router.post("/start-evaluation", resumeController.startEvaluation);
 
+// Step 3.5: Start multi-model scoring (NEW - OpenAI + Claude + Gemini)
+router.post("/start-multi-model-scoring", resumeController.startMultiModelScoring);
+
 // Step 4: Start Anthropic validation (unchanged)
 router.post(
   "/start-anthropic-validation",
@@ -149,6 +152,13 @@ router.get(
   "/batch/:batchId/progress",
   validateBatchId,
   resumeController.getBatchProgress
+);
+
+// Multi-model progress monitoring (NEW)
+router.get(
+  "/batch/:batchId/multi-model-progress",
+  validateBatchId,
+  resumeController.getMultiModelProgress
 );
 
 // Batch control (unchanged)
