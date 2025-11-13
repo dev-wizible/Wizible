@@ -447,14 +447,14 @@ export class DynamicGoogleSheetsLogger {
 
       const populatedFields = rowData.filter((value) => value !== "").length;
       console.log(
-        `✅ Added scores to ${sheetName} row ${nextRow}: ${populatedFields}/${headers.length} fields populated`
+        `✅ Successfully logged to ${sheetName} (row ${nextRow}): ${populatedFields}/${headers.length} fields populated`
       );
     } catch (error) {
-      console.warn(
-        `⚠️ Failed to log scores to Google Sheets (${sheetName}):`,
+      console.error(
+        `❌ Failed to log scores to Google Sheets (${sheetName}):`,
         error
       );
-      // Don't throw - Google Sheets logging is optional
+      // Don't throw - Google Sheets logging is optional, but log it as error
     }
   }
 }

@@ -1242,22 +1242,14 @@ export class BulkResumeProcessor extends EventEmitter {
           jobConfig.googleSheets?.sheetId &&
           jobConfig.googleSheets?.openaiTabName
         ) {
-          try {
-            console.log(
-              `📊 Logging OpenAI scores to Google Sheets: ${jobConfig.googleSheets.sheetId} -> ${jobConfig.googleSheets.openaiTabName}`
-            );
-            await this.dynamicSheetsLogger.logScores(
-              jobConfig.googleSheets.sheetId,
-              jobConfig.googleSheets.openaiTabName,
-              scores
-            );
-            console.log(`✅ Successfully logged ${filename} to OpenAI tab`);
-          } catch (sheetError) {
-            console.error(
-              `❌ Failed to log ${filename} to Google Sheets:`,
-              sheetError
-            );
-          }
+          console.log(
+            `📊 Logging OpenAI scores to Google Sheets: ${jobConfig.googleSheets.sheetId} -> ${jobConfig.googleSheets.openaiTabName}`
+          );
+          await this.dynamicSheetsLogger.logScores(
+            jobConfig.googleSheets.sheetId,
+            jobConfig.googleSheets.openaiTabName,
+            scores
+          );
         } else {
           console.log(
             `⚠️ Google Sheets not configured for OpenAI. SheetId: ${jobConfig.googleSheets?.sheetId}, TabName: ${jobConfig.googleSheets?.openaiTabName}`
@@ -1308,22 +1300,14 @@ export class BulkResumeProcessor extends EventEmitter {
           jobConfig.googleSheets?.sheetId &&
           jobConfig.googleSheets?.claudeTabName
         ) {
-          try {
-            console.log(
-              `📊 Logging Claude scores to Google Sheets: ${jobConfig.googleSheets.sheetId} -> ${jobConfig.googleSheets.claudeTabName}`
-            );
-            await this.dynamicSheetsLogger.logScores(
-              jobConfig.googleSheets.sheetId,
-              jobConfig.googleSheets.claudeTabName,
-              scores
-            );
-            console.log(`✅ Successfully logged ${filename} to Claude tab`);
-          } catch (sheetError) {
-            console.error(
-              `❌ Failed to log ${filename} to Google Sheets:`,
-              sheetError
-            );
-          }
+          console.log(
+            `📊 Logging Claude scores to Google Sheets: ${jobConfig.googleSheets.sheetId} -> ${jobConfig.googleSheets.claudeTabName}`
+          );
+          await this.dynamicSheetsLogger.logScores(
+            jobConfig.googleSheets.sheetId,
+            jobConfig.googleSheets.claudeTabName,
+            scores
+          );
         } else {
           console.log(
             `⚠️ Google Sheets not configured for Claude. SheetId: ${jobConfig.googleSheets?.sheetId}, TabName: ${jobConfig.googleSheets?.claudeTabName}`
@@ -1374,22 +1358,14 @@ export class BulkResumeProcessor extends EventEmitter {
           jobConfig.googleSheets?.sheetId &&
           jobConfig.googleSheets?.geminiTabName
         ) {
-          try {
-            console.log(
-              `📊 Logging Gemini scores to Google Sheets: ${jobConfig.googleSheets.sheetId} -> ${jobConfig.googleSheets.geminiTabName}`
-            );
-            await this.dynamicSheetsLogger.logScores(
-              jobConfig.googleSheets.sheetId,
-              jobConfig.googleSheets.geminiTabName,
-              scores
-            );
-            console.log(`✅ Successfully logged ${filename} to Gemini tab`);
-          } catch (sheetError) {
-            console.error(
-              `❌ Failed to log ${filename} to Google Sheets:`,
-              sheetError
-            );
-          }
+          console.log(
+            `📊 Logging Gemini scores to Google Sheets: ${jobConfig.googleSheets.sheetId} -> ${jobConfig.googleSheets.geminiTabName}`
+          );
+          await this.dynamicSheetsLogger.logScores(
+            jobConfig.googleSheets.sheetId,
+            jobConfig.googleSheets.geminiTabName,
+            scores
+          );
         } else {
           console.log(
             `⚠️ Google Sheets not configured for Gemini. SheetId: ${jobConfig.googleSheets?.sheetId}, TabName: ${jobConfig.googleSheets?.geminiTabName}`
