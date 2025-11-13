@@ -489,6 +489,12 @@ export class ResumeController {
             ? {
                 sheetId: googleSheets.sheetId.trim(),
                 sheetName: googleSheets.sheetName?.trim() || "Sheet1",
+                openaiTabName:
+                  googleSheets.openaiTabName?.trim() || "OpenAI_Results",
+                claudeTabName:
+                  googleSheets.claudeTabName?.trim() || "Claude_Results",
+                geminiTabName:
+                  googleSheets.geminiTabName?.trim() || "Gemini_Results",
               }
             : undefined,
       };
@@ -520,6 +526,9 @@ export class ResumeController {
       console.log(
         `⚙️ Job configuration saved for folder '${serverConfig.currentFolder}' at: ${configPath}`
       );
+      console.log(
+        `✅ Tab names written to file: OpenAI=${jobConfig.googleSheets?.openaiTabName}, Claude=${jobConfig.googleSheets?.claudeTabName}, Gemini=${jobConfig.googleSheets?.geminiTabName}`
+      );
 
       res.status(200).json({
         success: true,
@@ -530,6 +539,9 @@ export class ResumeController {
             ? {
                 sheetId: jobConfig.googleSheets.sheetId,
                 sheetName: jobConfig.googleSheets.sheetName,
+                openaiTabName: jobConfig.googleSheets.openaiTabName,
+                claudeTabName: jobConfig.googleSheets.claudeTabName,
+                geminiTabName: jobConfig.googleSheets.geminiTabName,
               }
             : null,
           message: "Job configuration saved successfully",
