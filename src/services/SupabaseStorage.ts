@@ -37,7 +37,11 @@ export class SupabaseStorage {
         .select("id")
         .limit(1);
 
-      if (error && error.code !== "PGRST116" && !error.message.includes("does not exist")) {
+      if (
+        error &&
+        error.code !== "PGRST116" &&
+        !error.message.includes("does not exist")
+      ) {
         console.error("❌ Supabase connection failed:", error.message);
         throw error;
       }
@@ -73,7 +77,9 @@ export class SupabaseStorage {
       // Check for duplicates first
       const existing = await this.findByFilename(filename, folderName);
       if (existing) {
-        console.log(`⏭️  Skipping duplicate: ${filename} in folder '${folderName}'`);
+        console.log(
+          `⏭️  Skipping duplicate: ${filename} in folder '${folderName}'`
+        );
         return existing;
       }
 
@@ -92,16 +98,23 @@ export class SupabaseStorage {
       if (error) {
         // If table doesn't exist, log warning but don't fail
         if (error.message.includes("does not exist")) {
-          console.warn(`⚠️ Table '${tableName}' doesn't exist for folder '${folderName}'. Record not saved to database.`);
+          console.warn(
+            `⚠️ Table '${tableName}' doesn't exist for folder '${folderName}'. Record not saved to database.`
+          );
           return record as ResumeRecord;
         }
         throw error;
       }
 
-      console.log(`✅ Saved extraction to Supabase: ${filename} (folder: ${folderName})`);
+      console.log(
+        `✅ Saved extraction to Supabase: ${filename} (folder: ${folderName})`
+      );
       return data;
     } catch (error) {
-      console.error(`❌ Failed to save extraction for ${filename} in folder '${folderName}':`, error);
+      console.error(
+        `❌ Failed to save extraction for ${filename} in folder '${folderName}':`,
+        error
+      );
       throw error;
     }
   }
@@ -130,16 +143,23 @@ export class SupabaseStorage {
 
       if (error) {
         if (error.message.includes("does not exist")) {
-          console.warn(`⚠️ Table '${tableName}' doesn't exist for folder '${folderName}'. Scores not saved to database.`);
+          console.warn(
+            `⚠️ Table '${tableName}' doesn't exist for folder '${folderName}'. Scores not saved to database.`
+          );
           return null;
         }
         throw error;
       }
 
-      console.log(`✅ Updated scores in Supabase: ${filename} (folder: ${folderName})`);
+      console.log(
+        `✅ Updated scores in Supabase: ${filename} (folder: ${folderName})`
+      );
       return data;
     } catch (error) {
-      console.error(`❌ Failed to update scores for ${filename} in folder '${folderName}':`, error);
+      console.error(
+        `❌ Failed to update scores for ${filename} in folder '${folderName}':`,
+        error
+      );
       throw error;
     }
   }
@@ -168,16 +188,23 @@ export class SupabaseStorage {
 
       if (error) {
         if (error.message.includes("does not exist")) {
-          console.warn(`⚠️ Table '${tableName}' doesn't exist for folder '${folderName}'. Validation not saved to database.`);
+          console.warn(
+            `⚠️ Table '${tableName}' doesn't exist for folder '${folderName}'. Validation not saved to database.`
+          );
           return null;
         }
         throw error;
       }
 
-      console.log(`✅ Updated validation in Supabase: ${filename} (folder: ${folderName})`);
+      console.log(
+        `✅ Updated validation in Supabase: ${filename} (folder: ${folderName})`
+      );
       return data;
     } catch (error) {
-      console.error(`❌ Failed to update validation for ${filename} in folder '${folderName}':`, error);
+      console.error(
+        `❌ Failed to update validation for ${filename} in folder '${folderName}':`,
+        error
+      );
       throw error;
     }
   }
@@ -201,7 +228,9 @@ export class SupabaseStorage {
 
       if (error && error.code !== "PGRST116") {
         if (error.message.includes("does not exist")) {
-          console.warn(`⚠️ Table '${tableName}' doesn't exist for folder '${folderName}'`);
+          console.warn(
+            `⚠️ Table '${tableName}' doesn't exist for folder '${folderName}'`
+          );
           return null;
         }
         throw error;
@@ -209,7 +238,10 @@ export class SupabaseStorage {
 
       return data || null;
     } catch (error) {
-      console.error(`❌ Failed to find record for ${filename} in folder '${folderName}':`, error);
+      console.error(
+        `❌ Failed to find record for ${filename} in folder '${folderName}':`,
+        error
+      );
       return null;
     }
   }
@@ -229,7 +261,9 @@ export class SupabaseStorage {
 
       if (error) {
         if (error.message.includes("does not exist")) {
-          console.warn(`⚠️ Table '${tableName}' doesn't exist for folder '${folderName}'`);
+          console.warn(
+            `⚠️ Table '${tableName}' doesn't exist for folder '${folderName}'`
+          );
           return [];
         }
         throw error;
@@ -237,7 +271,10 @@ export class SupabaseStorage {
 
       return data || [];
     } catch (error) {
-      console.error(`❌ Failed to get records for folder '${folderName}':`, error);
+      console.error(
+        `❌ Failed to get records for folder '${folderName}':`,
+        error
+      );
       return [];
     }
   }
@@ -254,7 +291,7 @@ export class SupabaseStorage {
       if (folderName) {
         // Search in specific folder
         const tableName = this.getTableName(folderName);
-        
+
         const { data, error } = await this.supabase
           .from(tableName)
           .select("*")
@@ -263,7 +300,9 @@ export class SupabaseStorage {
 
         if (error) {
           if (error.message.includes("does not exist")) {
-            console.warn(`⚠️ Table '${tableName}' doesn't exist for folder '${folderName}'`);
+            console.warn(
+              `⚠️ Table '${tableName}' doesn't exist for folder '${folderName}'`
+            );
             return [];
           }
           throw error;
@@ -277,7 +316,10 @@ export class SupabaseStorage {
 
         for (const folder of allFolders) {
           try {
-            const folderResults = await this.searchByScore(minScore, folder.name);
+            const folderResults = await this.searchByScore(
+              minScore,
+              folder.name
+            );
             allResults.push(...folderResults);
           } catch (error) {
             console.warn(`⚠️ Failed to search folder '${folder.name}':`, error);
@@ -296,6 +338,38 @@ export class SupabaseStorage {
     }
   }
 
+  async getExtractionData(
+    filename: string,
+    folderName: string
+  ): Promise<any | null> {
+    if (!this.initialized) {
+      await this.initialize();
+    }
+
+    const tableName = this.getTableName(folderName);
+
+    try {
+      const { data, error } = await this.supabase
+        .from(tableName)
+        .select("extraction_data")
+        .eq("filename", filename)
+        .single();
+
+      if (error) {
+        console.warn(
+          `⚠️ Error getting extraction data for ${filename}:`,
+          error
+        );
+        return null;
+      }
+
+      return data?.extraction_data || null;
+    } catch (error) {
+      console.warn(`⚠️ Error getting extraction data for ${filename}:`, error);
+      return null;
+    }
+  }
+
   async getStats(folderName?: string): Promise<{
     total: number;
     extracted: number;
@@ -310,14 +384,14 @@ export class SupabaseStorage {
       if (folderName) {
         // Get stats for specific folder
         const tableName = this.getTableName(folderName);
-        
-        const { data, error } = await this.supabase
-          .from(tableName)
-          .select("*");
+
+        const { data, error } = await this.supabase.from(tableName).select("*");
 
         if (error) {
           if (error.message.includes("does not exist")) {
-            console.warn(`⚠️ Table '${tableName}' doesn't exist for folder '${folderName}'`);
+            console.warn(
+              `⚠️ Table '${tableName}' doesn't exist for folder '${folderName}'`
+            );
             return { total: 0, extracted: 0, scored: 0, validated: 0 };
           }
           throw error;
@@ -349,7 +423,10 @@ export class SupabaseStorage {
             combinedStats.scored += folderStats.scored;
             combinedStats.validated += folderStats.validated;
           } catch (error) {
-            console.warn(`⚠️ Failed to get stats for folder '${folder.name}':`, error);
+            console.warn(
+              `⚠️ Failed to get stats for folder '${folder.name}':`,
+              error
+            );
           }
         }
 
@@ -376,7 +453,9 @@ export class SupabaseStorage {
 
       if (error) {
         if (error.message.includes("does not exist")) {
-          console.warn(`⚠️ Table '${tableName}' doesn't exist for folder '${folderName}'`);
+          console.warn(
+            `⚠️ Table '${tableName}' doesn't exist for folder '${folderName}'`
+          );
           return false;
         }
         throw error;
@@ -385,7 +464,10 @@ export class SupabaseStorage {
       console.log(`🗑️ Deleted record: ${filename} from folder '${folderName}'`);
       return true;
     } catch (error) {
-      console.error(`❌ Failed to delete record ${filename} from folder '${folderName}':`, error);
+      console.error(
+        `❌ Failed to delete record ${filename} from folder '${folderName}':`,
+        error
+      );
       return false;
     }
   }
@@ -408,14 +490,16 @@ export class SupabaseStorage {
         const { error } = await this.supabase
           .from(tableName)
           .delete()
-          .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all records
+          .neq("id", "00000000-0000-0000-0000-000000000000"); // Delete all records
 
         if (error) {
           throw error;
         }
       }
 
-      console.log(`🧹 Cleared ${recordCount} records from folder '${folderName}'`);
+      console.log(
+        `🧹 Cleared ${recordCount} records from folder '${folderName}'`
+      );
       return recordCount;
     } catch (error) {
       console.error(`❌ Failed to clear folder '${folderName}':`, error);

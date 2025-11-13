@@ -430,9 +430,7 @@ export class ResumeController {
         `   • Evaluation rubric length: ${evaluationRubric?.length || 0}`
       );
       if (googleSheets?.sheetId) {
-        console.log(
-          `   • Google Sheets: ${googleSheets.sheetId}`
-        );
+        console.log(`   • Google Sheets: ${googleSheets.sheetId}`);
         console.log(
           `   • OpenAI Tab: ${googleSheets.openaiTabName || "OpenAI_Results"}`
         );
@@ -1061,7 +1059,9 @@ export class ResumeController {
         return;
       }
 
-      console.log(`🚀 Starting multi-model scoring in folder '${serverConfig.currentFolder}'`);
+      console.log(
+        `🚀 Starting multi-model scoring in folder '${serverConfig.currentFolder}'`
+      );
       console.log(`   • OpenAI Model: ${models.openai}`);
       console.log(`   • Claude Model: ${models.claude}`);
       console.log(`   • Gemini Model: ${models.gemini}`);
@@ -1094,8 +1094,9 @@ export class ResumeController {
 
       const jobConfig = JSON.parse(fs.readFileSync(configPath, "utf8"));
 
-      // Get extracted files
+      // Check for extracted files in filesystem first
       let extractedFiles: string[] = [];
+      let useDatabase = false;
 
       if (fs.existsSync(extractionsDir)) {
         extractedFiles = fs
@@ -1103,13 +1104,49 @@ export class ResumeController {
           .filter((file) => file.endsWith(".json"));
       }
 
+      // If no filesystem files, check database
+      if (extractedFiles.length === 0) {
+        try {
+          // Load actual records to get filenames for processing
+          const { data: records, error } = await (
+            this.folderManager as any
+          ).supabase
+            .from(currentFolderInfo.tableName)
+            .select("filename")
+            .not("extraction_data", "is", null);
+
+          if (!error && records && records.length > 0) {
+            console.log(
+              `📊 Using ${records.length} records from database table ${currentFolderInfo.tableName}`
+            );
+            useDatabase = true;
+            // Use actual filenames from database records
+            extractedFiles = records.map(
+              (record, i) => record.filename || `database_record_${i + 1}.json`
+            );
+          }
+        } catch (dbError) {
+          console.warn(
+            "⚠️ Could not check database for existing data:",
+            dbError
+          );
+        }
+      }
+
       if (extractedFiles.length === 0) {
         res.status(400).json({
           success: false,
-          error: `No extracted files found in folder '${currentFolder}'. Please extract resumes first.`,
+          error: `No extracted data found in folder '${currentFolder}'. Please complete extraction first.`,
         });
         return;
       }
+
+      console.log(
+        `📁 Found ${extractedFiles.length} extracted files (${
+          useDatabase ? "from database" : "from filesystem"
+        })`
+      );
+      console.log(`   • First 5 files:`, extractedFiles.slice(0, 5));
 
       // Start multi-model scoring with dynamic model names
       const batchId = await this.processor.startMultiModelScoring(
@@ -1148,7 +1185,10 @@ export class ResumeController {
   };
 
   // New: Get multi-model progress
-  getMultiModelProgress = async (req: Request, res: Response): Promise<void> => {
+  getMultiModelProgress = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
     try {
       const { batchId } = req.params;
       const progress = this.processor.getMultiModelProgress(batchId);

@@ -1074,6 +1074,36 @@ export class BulkResumeProcessor extends EventEmitter {
   // NEW: MULTI-MODEL SCORING (OpenAI + Claude + Gemini)
   // =====================================================
 
+  // Helper method to load resume data from filesystem or database
+  private async loadResumeData(
+    filename: string,
+    extractionsDir: string
+  ): Promise<any> {
+    const currentFolder = serverConfig.currentFolder;
+
+    // Try filesystem first
+    const filePath = path.join(extractionsDir, filename);
+    if (fs.existsSync(filePath)) {
+      return JSON.parse(fs.readFileSync(filePath, "utf8"));
+    }
+
+    // Try database
+    try {
+      const extractionData = await this.supabase.getExtractionData(
+        filename,
+        currentFolder
+      );
+      if (extractionData) {
+        console.log(`📊 Loaded ${filename} from database`);
+        return extractionData;
+      }
+    } catch (dbError) {
+      console.warn(`⚠️ Could not load ${filename} from database:`, dbError);
+    }
+
+    throw new Error(`Could not load resume data for ${filename}`);
+  }
+
   async startMultiModelScoring(
     extractedFiles: string[],
     jobConfig: JobConfig,
@@ -1086,7 +1116,9 @@ export class BulkResumeProcessor extends EventEmitter {
     console.log(`🚀 Starting multi-model scoring for batch ${batchId}`);
     console.log(`   • Folder: ${currentFolder}`);
     console.log(`   • Files: ${extractedFiles.length}`);
-    console.log(`   • Models: OpenAI(${models.openaiModel}), Claude(${models.claudeModel}), Gemini(${models.geminiModel})`);
+    console.log(
+      `   • Models: OpenAI(${models.openaiModel}), Claude(${models.claudeModel}), Gemini(${models.geminiModel})`
+    );
 
     const multiModelJob = {
       batchId,
@@ -1117,7 +1149,13 @@ export class BulkResumeProcessor extends EventEmitter {
     this.multiModelJobs.set(batchId, multiModelJob);
 
     // Start scoring with all 3 models in parallel
-    this.processMultiModelScoring(batchId, extractedFiles, extractionsDir, jobConfig, models);
+    this.processMultiModelScoring(
+      batchId,
+      extractedFiles,
+      extractionsDir,
+      jobConfig,
+      models
+    );
 
     return batchId;
   }
@@ -1134,9 +1172,27 @@ export class BulkResumeProcessor extends EventEmitter {
 
     // Process all files with all 3 models in parallel
     await Promise.all([
-      this.processWithOpenAI(batchId, extractedFiles, extractionsDir, jobConfig, models.openaiModel),
-      this.processWithClaude(batchId, extractedFiles, extractionsDir, jobConfig, models.claudeModel),
-      this.processWithGemini(batchId, extractedFiles, extractionsDir, jobConfig, models.geminiModel),
+      this.processWithOpenAI(
+        batchId,
+        extractedFiles,
+        extractionsDir,
+        jobConfig,
+        models.openaiModel
+      ),
+      this.processWithClaude(
+        batchId,
+        extractedFiles,
+        extractionsDir,
+        jobConfig,
+        models.claudeModel
+      ),
+      this.processWithGemini(
+        batchId,
+        extractedFiles,
+        extractionsDir,
+        jobConfig,
+        models.geminiModel
+      ),
     ]);
 
     console.log(`🎉 Multi-model scoring complete for batch ${batchId}`);
@@ -1156,8 +1212,7 @@ export class BulkResumeProcessor extends EventEmitter {
 
     for (const filename of extractedFiles) {
       try {
-        const filePath = path.join(extractionsDir, filename);
-        const resumeData = JSON.parse(fs.readFileSync(filePath, "utf8"));
+        const resumeData = await this.loadResumeData(filename, extractionsDir);
 
         const scores = await this.scorer.scoreResume({
           resumeData,
@@ -1170,7 +1225,10 @@ export class BulkResumeProcessor extends EventEmitter {
         job.openai.scored++;
 
         // Log to Google Sheets if configured
-        if (jobConfig.googleSheets?.sheetId && jobConfig.googleSheets?.openaiTabName) {
+        if (
+          jobConfig.googleSheets?.sheetId &&
+          jobConfig.googleSheets?.openaiTabName
+        ) {
           await this.dynamicSheetsLogger.logScores(
             jobConfig.googleSheets.sheetId,
             jobConfig.googleSheets.openaiTabName,
@@ -1183,7 +1241,9 @@ export class BulkResumeProcessor extends EventEmitter {
     }
 
     job.openai.status = "completed";
-    console.log(`✅ OpenAI scoring complete: ${job.openai.scored}/${job.openai.total}`);
+    console.log(
+      `✅ OpenAI scoring complete: ${job.openai.scored}/${job.openai.total}`
+    );
   }
 
   private async processWithClaude(
@@ -1200,8 +1260,7 @@ export class BulkResumeProcessor extends EventEmitter {
 
     for (const filename of extractedFiles) {
       try {
-        const filePath = path.join(extractionsDir, filename);
-        const resumeData = JSON.parse(fs.readFileSync(filePath, "utf8"));
+        const resumeData = await this.loadResumeData(filename, extractionsDir);
 
         const scores = await this.claudeScorer.scoreResume({
           resumeData,
@@ -1214,7 +1273,10 @@ export class BulkResumeProcessor extends EventEmitter {
         job.claude.scored++;
 
         // Log to Google Sheets if configured
-        if (jobConfig.googleSheets?.sheetId && jobConfig.googleSheets?.claudeTabName) {
+        if (
+          jobConfig.googleSheets?.sheetId &&
+          jobConfig.googleSheets?.claudeTabName
+        ) {
           await this.dynamicSheetsLogger.logScores(
             jobConfig.googleSheets.sheetId,
             jobConfig.googleSheets.claudeTabName,
@@ -1227,7 +1289,9 @@ export class BulkResumeProcessor extends EventEmitter {
     }
 
     job.claude.status = "completed";
-    console.log(`✅ Claude scoring complete: ${job.claude.scored}/${job.claude.total}`);
+    console.log(
+      `✅ Claude scoring complete: ${job.claude.scored}/${job.claude.total}`
+    );
   }
 
   private async processWithGemini(
@@ -1244,8 +1308,7 @@ export class BulkResumeProcessor extends EventEmitter {
 
     for (const filename of extractedFiles) {
       try {
-        const filePath = path.join(extractionsDir, filename);
-        const resumeData = JSON.parse(fs.readFileSync(filePath, "utf8"));
+        const resumeData = await this.loadResumeData(filename, extractionsDir);
 
         const scores = await this.geminiScorer.scoreResume({
           resumeData,
@@ -1258,7 +1321,10 @@ export class BulkResumeProcessor extends EventEmitter {
         job.gemini.scored++;
 
         // Log to Google Sheets if configured
-        if (jobConfig.googleSheets?.sheetId && jobConfig.googleSheets?.geminiTabName) {
+        if (
+          jobConfig.googleSheets?.sheetId &&
+          jobConfig.googleSheets?.geminiTabName
+        ) {
           await this.dynamicSheetsLogger.logScores(
             jobConfig.googleSheets.sheetId,
             jobConfig.googleSheets.geminiTabName,
@@ -1271,7 +1337,9 @@ export class BulkResumeProcessor extends EventEmitter {
     }
 
     job.gemini.status = "completed";
-    console.log(`✅ Gemini scoring complete: ${job.gemini.scored}/${job.gemini.total}`);
+    console.log(
+      `✅ Gemini scoring complete: ${job.gemini.scored}/${job.gemini.total}`
+    );
   }
 
   getMultiModelProgress(batchId: string): any {
