@@ -1290,12 +1290,15 @@ export class BulkResumeProcessor extends EventEmitter {
       try {
         const resumeData = await this.loadResumeData(filename, extractionsDir);
 
-        const scores = await this.claudeScorer.scoreResume({
-          resumeData,
-          jobDescription: jobConfig.jobDescription,
-          evaluationRubric: jobConfig.evaluationRubric,
-          resumeFilename: filename,
-        });
+        const scores = await this.claudeScorer.scoreResume(
+          {
+            resumeData,
+            jobDescription: jobConfig.jobDescription,
+            evaluationRubric: jobConfig.evaluationRubric,
+            resumeFilename: filename,
+          },
+          model // Pass dynamic model
+        );
 
         job.claude.scores.push({ filename, scores });
         job.claude.scored++;
@@ -1353,12 +1356,15 @@ export class BulkResumeProcessor extends EventEmitter {
       try {
         const resumeData = await this.loadResumeData(filename, extractionsDir);
 
-        const scores = await this.geminiScorer.scoreResume({
-          resumeData,
-          jobDescription: jobConfig.jobDescription,
-          evaluationRubric: jobConfig.evaluationRubric,
-          resumeFilename: filename,
-        });
+        const scores = await this.geminiScorer.scoreResume(
+          {
+            resumeData,
+            jobDescription: jobConfig.jobDescription,
+            evaluationRubric: jobConfig.evaluationRubric,
+            resumeFilename: filename,
+          },
+          model // Pass dynamic model
+        );
 
         job.gemini.scores.push({ filename, scores });
         job.gemini.scored++;

@@ -19,11 +19,14 @@ export class AnthropicAIScorer {
     });
   }
 
-  async scoreResume(request: ScoringRequest): Promise<any> {
+  async scoreResume(request: ScoringRequest, modelName?: string): Promise<any> {
     const { resumeData, jobDescription, evaluationRubric, resumeFilename } =
       request;
 
     let lastError: Error | null = null;
+
+    // Use dynamic model or fall back to default
+    const model = modelName || apiConfig.anthropic.model;
 
     for (let attempt = 1; attempt <= config.retries.maxAttempts; attempt++) {
       try {
@@ -34,7 +37,7 @@ export class AnthropicAIScorer {
         );
 
         const response = await this.anthropic.messages.create({
-          model: apiConfig.anthropic.model,
+          model: model,
           max_tokens: apiConfig.anthropic.maxTokens,
           temperature: 0.1,
           system: "You are an expert recruiter and evaluator.",

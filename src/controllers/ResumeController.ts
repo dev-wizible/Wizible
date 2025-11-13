@@ -429,20 +429,29 @@ export class ResumeController {
       console.log(
         `   • Evaluation rubric length: ${evaluationRubric?.length || 0}`
       );
-      
+
       // Debug: Show what was received
-      console.log("📦 Received googleSheets object:", JSON.stringify(googleSheets, null, 2));
-      
+      console.log(
+        "📦 Received googleSheets object:",
+        JSON.stringify(googleSheets, null, 2)
+      );
+
       if (googleSheets?.sheetId) {
         console.log(`   • Google Sheets: ${googleSheets.sheetId}`);
         console.log(
-          `   • OpenAI Tab: ${googleSheets.openaiTabName || "NOT PROVIDED - WILL USE DEFAULT"}`
+          `   • OpenAI Tab: ${
+            googleSheets.openaiTabName || "NOT PROVIDED - WILL USE DEFAULT"
+          }`
         );
         console.log(
-          `   • Claude Tab: ${googleSheets.claudeTabName || "NOT PROVIDED - WILL USE DEFAULT"}`
+          `   • Claude Tab: ${
+            googleSheets.claudeTabName || "NOT PROVIDED - WILL USE DEFAULT"
+          }`
         );
         console.log(
-          `   • Gemini Tab: ${googleSheets.geminiTabName || "NOT PROVIDED - WILL USE DEFAULT"}`
+          `   • Gemini Tab: ${
+            googleSheets.geminiTabName || "NOT PROVIDED - WILL USE DEFAULT"
+          }`
         );
       }
 
@@ -1097,6 +1106,21 @@ export class ResumeController {
       }
 
       const jobConfig = JSON.parse(fs.readFileSync(configPath, "utf8"));
+
+      // Debug: Log loaded configuration
+      console.log(`📋 Loaded job configuration from file:`);
+      console.log(
+        `   • Sheet ID: ${jobConfig.googleSheets?.sheetId || "NOT SET"}`
+      );
+      console.log(
+        `   • OpenAI Tab: ${jobConfig.googleSheets?.openaiTabName || "NOT SET"}`
+      );
+      console.log(
+        `   • Claude Tab: ${jobConfig.googleSheets?.claudeTabName || "NOT SET"}`
+      );
+      console.log(
+        `   • Gemini Tab: ${jobConfig.googleSheets?.geminiTabName || "NOT SET"}`
+      );
 
       // Check for extracted files in filesystem first
       let extractedFiles: string[] = [];

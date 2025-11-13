@@ -11,18 +11,21 @@ export interface ScoringRequest {
 
 export class GeminiAIScorer {
   private genAI: GoogleGenerativeAI;
-  private model: any;
+  private currentModel: string;
 
   constructor() {
     this.genAI = new GoogleGenerativeAI(apiConfig.gemini.apiKey);
-    this.model = this.genAI.getGenerativeModel({
-      model: apiConfig.gemini.model,
-    });
+    this.currentModel = apiConfig.gemini.model; // Default model
   }
 
-  async scoreResume(request: ScoringRequest): Promise<any> {
+  async scoreResume(request: ScoringRequest, modelName?: string): Promise<any> {
     const { resumeData, jobDescription, evaluationRubric, resumeFilename } =
       request;
+
+    // Use dynamic model or fall back to default
+    const model = this.genAI.getGenerativeModel({
+      model: modelName || this.currentModel,
+    });
 
     let lastError: Error | null = null;
 
@@ -37,7 +40,7 @@ export class GeminiAIScorer {
         // Gemini API expects just the text prompt, not wrapped in role/parts
         const fullPrompt = `You are an expert recruiter and evaluator. ${prompt}`;
 
-        const result = await this.model.generateContent(fullPrompt);
+        const result = await model.generateContent(fullPrompt);
         const response = await result.response;
         const content = response.text();
 
