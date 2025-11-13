@@ -34,17 +34,10 @@ export class GeminiAIScorer {
           evaluationRubric
         );
 
-        const result = await this.model.generateContent([
-          {
-            role: "user",
-            parts: [
-              {
-                text: `You are an expert recruiter and evaluator. ${prompt}`,
-              },
-            ],
-          },
-        ]);
+        // Gemini API expects just the text prompt, not wrapped in role/parts
+        const fullPrompt = `You are an expert recruiter and evaluator. ${prompt}`;
 
+        const result = await this.model.generateContent(fullPrompt);
         const response = await result.response;
         const content = response.text();
 

@@ -1119,6 +1119,19 @@ export class BulkResumeProcessor extends EventEmitter {
     console.log(
       `   • Models: OpenAI(${models.openaiModel}), Claude(${models.claudeModel}), Gemini(${models.geminiModel})`
     );
+    console.log(`   • Google Sheets Configuration:`);
+    console.log(
+      `     - Sheet ID: ${jobConfig.googleSheets?.sheetId || "NOT SET"}`
+    );
+    console.log(
+      `     - OpenAI Tab: ${jobConfig.googleSheets?.openaiTabName || "NOT SET"}`
+    );
+    console.log(
+      `     - Claude Tab: ${jobConfig.googleSheets?.claudeTabName || "NOT SET"}`
+    );
+    console.log(
+      `     - Gemini Tab: ${jobConfig.googleSheets?.geminiTabName || "NOT SET"}`
+    );
 
     const multiModelJob = {
       batchId,
@@ -1229,10 +1242,25 @@ export class BulkResumeProcessor extends EventEmitter {
           jobConfig.googleSheets?.sheetId &&
           jobConfig.googleSheets?.openaiTabName
         ) {
-          await this.dynamicSheetsLogger.logScores(
-            jobConfig.googleSheets.sheetId,
-            jobConfig.googleSheets.openaiTabName,
-            scores
+          try {
+            console.log(
+              `📊 Logging OpenAI scores to Google Sheets: ${jobConfig.googleSheets.sheetId} -> ${jobConfig.googleSheets.openaiTabName}`
+            );
+            await this.dynamicSheetsLogger.logScores(
+              jobConfig.googleSheets.sheetId,
+              jobConfig.googleSheets.openaiTabName,
+              scores
+            );
+            console.log(`✅ Successfully logged ${filename} to OpenAI tab`);
+          } catch (sheetError) {
+            console.error(
+              `❌ Failed to log ${filename} to Google Sheets:`,
+              sheetError
+            );
+          }
+        } else {
+          console.log(
+            `⚠️ Google Sheets not configured for OpenAI. SheetId: ${jobConfig.googleSheets?.sheetId}, TabName: ${jobConfig.googleSheets?.openaiTabName}`
           );
         }
       } catch (error) {
@@ -1277,10 +1305,25 @@ export class BulkResumeProcessor extends EventEmitter {
           jobConfig.googleSheets?.sheetId &&
           jobConfig.googleSheets?.claudeTabName
         ) {
-          await this.dynamicSheetsLogger.logScores(
-            jobConfig.googleSheets.sheetId,
-            jobConfig.googleSheets.claudeTabName,
-            scores
+          try {
+            console.log(
+              `📊 Logging Claude scores to Google Sheets: ${jobConfig.googleSheets.sheetId} -> ${jobConfig.googleSheets.claudeTabName}`
+            );
+            await this.dynamicSheetsLogger.logScores(
+              jobConfig.googleSheets.sheetId,
+              jobConfig.googleSheets.claudeTabName,
+              scores
+            );
+            console.log(`✅ Successfully logged ${filename} to Claude tab`);
+          } catch (sheetError) {
+            console.error(
+              `❌ Failed to log ${filename} to Google Sheets:`,
+              sheetError
+            );
+          }
+        } else {
+          console.log(
+            `⚠️ Google Sheets not configured for Claude. SheetId: ${jobConfig.googleSheets?.sheetId}, TabName: ${jobConfig.googleSheets?.claudeTabName}`
           );
         }
       } catch (error) {
@@ -1325,10 +1368,25 @@ export class BulkResumeProcessor extends EventEmitter {
           jobConfig.googleSheets?.sheetId &&
           jobConfig.googleSheets?.geminiTabName
         ) {
-          await this.dynamicSheetsLogger.logScores(
-            jobConfig.googleSheets.sheetId,
-            jobConfig.googleSheets.geminiTabName,
-            scores
+          try {
+            console.log(
+              `📊 Logging Gemini scores to Google Sheets: ${jobConfig.googleSheets.sheetId} -> ${jobConfig.googleSheets.geminiTabName}`
+            );
+            await this.dynamicSheetsLogger.logScores(
+              jobConfig.googleSheets.sheetId,
+              jobConfig.googleSheets.geminiTabName,
+              scores
+            );
+            console.log(`✅ Successfully logged ${filename} to Gemini tab`);
+          } catch (sheetError) {
+            console.error(
+              `❌ Failed to log ${filename} to Google Sheets:`,
+              sheetError
+            );
+          }
+        } else {
+          console.log(
+            `⚠️ Google Sheets not configured for Gemini. SheetId: ${jobConfig.googleSheets?.sheetId}, TabName: ${jobConfig.googleSheets?.geminiTabName}`
           );
         }
       } catch (error) {
